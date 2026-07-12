@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Career Copilot - Personal Career Mentor</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- App Container -->
+  <div class="app-layout">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo-icon">▲</div>
+        <div class="brand-name">Career<span>Copilot</span></div>
+      </div>
+      
+      <nav class="nav-links">
+        <button class="nav-item active" data-tab="resume-tab">
+          <span class="icon">📄</span>
+          <span class="label">Resume Score</span>
+        </button>
+        <button class="nav-item" data-tab="roadmap-tab">
+          <span class="icon">🗺️</span>
+          <span class="label">Career Roadmap</span>
+        </button>
+        <button class="nav-item" data-tab="interview-tab">
+          <span class="icon">💬</span>
+          <span class="label">Mock Interview</span>
+        </button>
+        <button class="nav-item" data-tab="coverletter-tab">
+          <span class="icon">✉️</span>
+          <span class="label">Cover Letter</span>
+        </button>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <button id="settings-trigger" class="btn btn-secondary btn-full">
+          <span class="icon">⚙️</span> Settings
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Top header bar -->
+      <header class="top-bar">
+        <h1 id="page-title">AI Resume Analyzer</h1>
+        <div class="api-status-badge" id="api-status" title="Click to configure Gemini API Key">
+          <span class="status-indicator yellow"></span>
+          <span class="status-text">Demo Mode (Mock)</span>
+        </div>
+      </header>
+      
+      <!-- Content Container -->
+      <div class="content-container">
+
+        <!-- ================= RESUME ANALYZER TAB ================= -->
+        <section id="resume-tab" class="tab-pane active">
+          <div class="grid-layout">
+            <!-- Left Panel: Input -->
+            <div class="card glass-card">
+              <h2 class="card-title">Upload Resume & Target Role</h2>
+              <p class="card-subtitle">Upload your PDF resume and enter the role you want to score it against.</p>
+              
+              <form id="resume-form" class="app-form">
+                <div class="form-group">
+                  <label for="resume-target-role">Target Job Role</label>
+                  <input type="text" id="resume-target-role" placeholder="e.g. Frontend Engineer, Product Manager" required>
+                </div>
+                
+                <div class="form-group">
+                  <label>Resume PDF File</label>
+                  <div class="file-dropzone" id="dropzone">
+                    <span class="dropzone-icon">📥</span>
+                    <span class="dropzone-text">Drag & drop your PDF resume here or click to browse</span>
+                    <input type="file" id="resume-file" accept=".pdf" required style="display: none;">
+                  </div>
+                  <div id="file-name-display" class="file-name-tag" style="display: none;">
+                    <span class="file-icon">📄</span> <span class="file-name-text">resume.pdf</span>
+                    <button type="button" id="remove-file-btn" class="remove-btn">&times;</button>
+                  </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">Analyze & Score Resume</button>
+              </form>
+            </div>
+            
+            <!-- Right Panel: Results -->
+            <div class="card glass-card result-panel">
+              <h2 class="card-title">Analysis & ATS Feedback</h2>
+              
+              <div id="resume-empty-state" class="empty-state">
+                <span class="empty-icon">📊</span>
+                <h3>No analysis performed yet</h3>
+                <p>Provide your target role and upload a PDF resume to get ATS scores and optimization tips.</p>
+              </div>
+
+              <div id="resume-loading" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>Extracting resume text and running ATS heuristics...</p>
+              </div>
+
+              <div id="resume-results" style="display: none;">
+                <!-- Heuristics Summary -->
+                <div class="metrics-grid">
+                  <div class="metric-card">
+                    <div class="metric-value" id="ats-score-val">0</div>
+                    <div class="metric-label">ATS Score Estimate</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-value" id="word-count-val">0</div>
+                    <div class="metric-label">Word Count</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-value" id="contact-info-val">No</div>
+                    <div class="metric-label">Contact Details</div>
+                  </div>
+                </div>
+
+                <div class="score-breakdown-section">
+                  <h3>Heuristics Checklist</h3>
+                  <ul class="checklist-items" id="heuristics-checklist">
+                    <!-- Dynamic check marks -->
+                  </ul>
+                </div>
+                
+                <div class="ai-review-section">
+                  <h3>Gemini AI Structural Review</h3>
+                  <div class="stream-output markdown-body" id="resume-ai-stream">
+                    <!-- Streamed content -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= CAREER ROADMAP TAB ================= -->
+        <section id="roadmap-tab" class="tab-pane">
+          <div class="grid-layout">
+            <!-- Left Input -->
+            <div class="card glass-card">
+              <h2 class="card-title">Generate Career Path</h2>
+              <p class="card-subtitle">Generate a custom phased learning roadmap based on where you are and where you want to go.</p>
+              
+              <form id="roadmap-form" class="app-form">
+                <div class="form-group">
+                  <label for="roadmap-skills">Current Skills</label>
+                  <textarea id="roadmap-skills" placeholder="e.g. Basic HTML, CSS, JavaScript, introductory Python" rows="3" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                  <label for="roadmap-target-role">Target Job Role</label>
+                  <input type="text" id="roadmap-target-role" placeholder="e.g. Full Stack Developer, Data Scientist" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">Build My Roadmap</button>
+              </form>
+            </div>
+            
+            <!-- Right Output -->
+            <div class="card glass-card result-panel">
+              <h2 class="card-title">Your Career Roadmap</h2>
+              
+              <div id="roadmap-empty-state" class="empty-state">
+                <span class="empty-icon">🗺️</span>
+                <h3>Enter your goals</h3>
+                <p>Fill out the profile on the left to stream a structured learning path with project milestones.</p>
+              </div>
+
+              <div id="roadmap-loading" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>Designing custom upskilling phases...</p>
+              </div>
+
+              <div class="stream-output markdown-body" id="roadmap-ai-stream" style="display: none;">
+                <!-- Streamed content -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= MOCK INTERVIEW TAB ================= -->
+        <section id="interview-tab" class="tab-pane">
+          <div class="grid-layout">
+            <!-- Left Setup -->
+            <div class="card glass-card">
+              <h2 class="card-title">Interview Configuration</h2>
+              <p class="card-subtitle">Set up your target role to begin a step-by-step recruiter behavioral round simulation.</p>
+              
+              <form id="interview-setup-form" class="app-form">
+                <div class="form-group">
+                  <label for="interview-role">Target Job Role</label>
+                  <input type="text" id="interview-role" placeholder="e.g. Software Engineer, QA Specialist" required>
+                </div>
+                
+                <button type="submit" id="start-interview-btn" class="btn btn-primary btn-full">Start Mock Interview</button>
+                <button type="button" id="end-interview-btn" class="btn btn-danger btn-full" style="display: none;">End Interview</button>
+              </form>
+
+              <div class="interview-instructions mt-4">
+                <h4>Guidelines:</h4>
+                <ul>
+                  <li>The AI acts as an HR recruiter.</li>
+                  <li>It will ask <strong>one question at a time</strong>.</li>
+                  <li>Type your answer in the chat panel.</li>
+                  <li>You will receive feedback on your communications at the end of the session.</li>
+                </ul>
+              </div>
+            </div>
+            
+            <!-- Right Chat Sandbox -->
+            <div class="card glass-card interview-console-card">
+              <h2 class="card-title">Interview Sandbox</h2>
+              
+              <div class="chat-container">
+                <div class="chat-messages" id="chat-messages">
+                  <div class="chat-system-msg">
+                    No active interview. Enter a target role and click "Start Mock Interview" to begin.
+                  </div>
+                </div>
+                
+                <!-- Chat Input Form -->
+                <form id="chat-input-form" class="chat-input-form" style="display: none;">
+                  <input type="text" id="chat-input-text" placeholder="Type your answer here..." required autocomplete="off">
+                  <button type="submit" class="btn btn-primary send-btn">Send</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= COVER LETTER TAB ================= -->
+        <section id="coverletter-tab" class="tab-pane">
+          <div class="grid-layout">
+            <!-- Left Input -->
+            <div class="card glass-card">
+              <h2 class="card-title">Tailor Cover Letter</h2>
+              <p class="card-subtitle">Paste your resume highlights and the job requirements to generate a tailored cover letter.</p>
+              
+              <form id="coverletter-form" class="app-form">
+                <div class="form-group">
+                  <label for="coverletter-resume">Resume Highlights / Text</label>
+                  <textarea id="coverletter-resume" placeholder="Paste key bullet points or summary from your resume..." rows="5" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                  <label for="coverletter-jd">Job Description</label>
+                  <textarea id="coverletter-jd" placeholder="Paste the key job requirements, skills, and company culture descriptions..." rows="5" required></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">Generate Cover Letter</button>
+              </form>
+            </div>
+            
+            <!-- Right Output -->
+            <div class="card glass-card result-panel">
+              <div class="panel-header-actions">
+                <h2 class="card-title">Tailored Cover Letter</h2>
+                <button id="copy-cover-letter-btn" class="btn btn-secondary btn-sm" style="display: none;">Copy to Clipboard</button>
+              </div>
+              
+              <div id="coverletter-empty-state" class="empty-state">
+                <span class="empty-icon">✉️</span>
+                <h3>Generate customized letter</h3>
+                <p>Provide your resume and job description on the left. The AI will write a highly targeted application letter.</p>
+              </div>
+
+              <div id="coverletter-loading" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>Drafting customized cover letter...</p>
+              </div>
+
+              <div class="stream-output markdown-body" id="coverletter-ai-stream" style="display: none;">
+                <!-- Streamed content -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Settings API Modal -->
+  <div class="modal-overlay" id="settings-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>API Configuration</h3>
+        <button id="close-modal-btn" class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>To connect live streaming capabilities to Google's Gemini 1.5 Flash models, enter your Gemini API key below.</p>
+        
+        <div class="form-group mt-3">
+          <label for="api-key-input">Gemini API Key</label>
+          <input type="password" id="api-key-input" placeholder="AIzaSy...">
+          <small class="help-text">This key is saved locally in your browser's <code>localStorage</code> and never sent elsewhere.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="clear-api-key-btn" class="btn btn-danger">Clear Key</button>
+        <button id="save-api-key-btn" class="btn btn-primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
