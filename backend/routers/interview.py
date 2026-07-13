@@ -1,76 +1,152 @@
-from fastapi import APIRouter, Header
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from services.llm_client import stream_gemini_response
-from prompts import INTERVIEW_SYSTEM_PROMPT
+"""
+interview.py
 
-router = APIRouter(prefix="/interview", tags=["interview"])
+API endpoints for the AI HR Mock Interview.
 
-# In-memory dictionary to store session state:
-# { session_id: { "target_role": "...", "history": [{"role": "user"/"model", "parts": [{"text": "..."}]}] } }
-sessions = {}
+Responsibilities:
+- Maintain conversation history using a session ID.
+- Simulate a professional HR interview.
+- Stream AI responses back to the frontend.
+
+Note:
+Conversation history is stored in memory for the MVP.
+A production version would use Redis or a database.
+"""
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+from sse_starlette.sse import EventSourceResponse
+
+from prompts import INTERVIEW_PROMPT
+from services.llm_client import stream_completion
+
+
+# Create router instance
+
+
+router = APIRouter()
+
+
+# In-memory conversation store
+#
+# Key:
+#   session_id
+#
+# Value:
+#   List of previous user messages.
+#
+# Example:
+#
+# interview_sessions = {
+#     "abc123": [
+#         "Tell me about yourself.",
+#         "I recently graduated..."
+#     ]
+# }
+#
+# Note:
+# This data will be cleared whenever the server restarts.
+
+
+interview_sessions = {}
+
+
+# Request Model
+
 
 class InterviewRequest(BaseModel):
-    session_id: str
-    message: str
-    target_role: str = "Software Engineer"
+    session_id: str = Field(
+        ...,
+        example="session_001"
+    )
+
+    message: str = Field(
+        ...,
+        example="I am ready to begin the interview."
+    )
+
+
+# Interview Endpoint
+
 
 @router.post("/chat")
-async def interview_chat(
-    req: InterviewRequest,
-    x_gemini_api_key: str = Header(None)
-):
+async def chat(request: InterviewRequest):
     """
-    Endpoint that handles multi-turn conversational mock interview steps.
-    Keeps conversation history in-memory and streams back response from Gemini.
+    Continue an HR mock interview.
+
+    Parameters
+    ----------
+    request : InterviewRequest
+
+    Returns
+    -------
+    EventSourceResponse
+        Streams the interviewer's response.
     """
-    session_id = req.session_id
-    
-    # Initialize session if not exists
-    if session_id not in sessions:
-        sessions[session_id] = {
-            "target_role": req.target_role,
-            "history": []
-        }
-    
-    session = sessions[session_id]
-    target_role = session["target_role"]
-    history = session["history"]
-    
-    system_instruction = INTERVIEW_SYSTEM_PROMPT.format(target_role=target_role)
 
-    # Prepare current prompt content
-    if req.message == "/start" or req.message.strip() == "":
-        # Start command: call LLM to introduce and ask the first question
-        prompt_content = "Introduce yourself as the mock interviewer, state the role, and ask the first question."
-    else:
-        # Standard conversation turn: append user's response to history
-        history.append({
-            "role": "user",
-            "parts": [{"text": req.message}]
-        })
-        # Pass full history to Gemini
-        prompt_content = history
+    
+    # Create a new interview session if it doesn't exist.
+ 
 
-    # We need to capture the streamed output to append it to history for future turns.
-    # We will wrap the streaming response.
-    async def response_accumulator_generator():
+    if request.session_id not in interview_sessions:
+        interview_sessions[request.session_id] = []
+
+    # Store the latest user response.
+    interview_sessions[request.session_id].append(
+        f"Candidate: {request.message}"
+    )
+
+    
+    # Build conversation history.
+    #
+    # Passing previous messages allows the LLM to
+    # maintain context across multiple interview rounds.
+    
+
+    conversation_history = "\n".join(
+        interview_sessions[request.session_id]
+    )
+
+    user_prompt = f"""
+Conversation History
+
+{conversation_history}
+
+Continue the HR interview.
+
+Remember:
+
+- Ask only ONE question at a time.
+- Wait for the candidate's next response.
+- Give brief feedback when appropriate.
+"""
+
+   
+    # Stream the AI response.
+    
+
+    async def event_generator():
+
         full_response = ""
-        # Using a copy/reference of prompt_content
-        async for chunk in stream_gemini_response(prompt_content, system_instruction, custom_api_key=x_gemini_api_key):
-            yield chunk
-            
-            # Extract the actual token from the SSE chunk format: "data: <token>\n\n"
-            if chunk.startswith("data: ") and chunk.endswith("\n\n"):
-                token = chunk[6:-2]
-                full_response += token
+
+        for chunk in stream_completion(
+            INTERVIEW_PROMPT,
+            user_prompt,
+        ):
+
+            full_response += chunk
+
+            yield {
+                "event": "message",
+                "data": chunk,
+            }
+
         
-        # Once stream finishes, store model's response in history
-        if full_response.strip():
-            history.append({
-                "role": "model",
-                "parts": [{"text": full_response}]
-            })
+        # Save the AI response so future requests retain context.
+   
 
-    return StreamingResponse(response_accumulator_generator(), media_type="text/event-stream")
+        interview_sessions[request.session_id].append(
+            f"Interviewer: {full_response}"
+        )
 
+    return EventSourceResponse(event_generator())
