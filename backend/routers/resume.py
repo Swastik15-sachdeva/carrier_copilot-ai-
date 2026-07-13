@@ -1,60 +1,123 @@
-import json
-from fastapi import APIRouter, File, UploadFile, Form, Header
-from fastapi.responses import StreamingResponse
+"""
+resume.py
+
+API endpoints for resume analysis.
+
+Responsibilities:
+- Accept PDF resume uploads.
+- Extract text from the uploaded resume.
+- Calculate a rule-based ATS score.
+- Send the resume to the LLM for AI analysis.
+- Stream the generated response back to the client.
+"""
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from sse_starlette.sse import EventSourceResponse
+
+from prompts import RESUME_ANALYZER_PROMPT
 from services.extract import extract_text_from_pdf
 from services.ats_scorer import calculate_ats_score
-from services.llm_client import stream_gemini_response
-from prompts import RESUME_ANALYZER_PROMPT
+from services.llm_client import stream_completion
 
-router = APIRouter(prefix="/resume", tags=["resume"])
+# Create router instance
+
+
+router = APIRouter()
+
+
+
+# Resume Analysis Endpoint
+
 
 @router.post("/analyze")
-async def analyze_resume(
-    target_role: str = Form(...),
-    file: UploadFile = File(...),
-    x_gemini_api_key: str = Header(None)
-):
+async def analyze_resume(file: UploadFile = File(...)):
     """
-    Endpoint that extracts text from a PDF resume, computes heuristic scoring,
-    and returns a combined SSE stream of heuristics and streaming LLM analysis.
+    Analyze an uploaded PDF resume.
+
+    Parameters
+    ----------
+    file : UploadFile
+        Resume uploaded by the user.
+
+    Returns
+    -------
+    EventSourceResponse
+        Streams AI-generated resume analysis.
     """
-    # 1. Read PDF bytes
+
+  
+    # Validate uploaded file type
+    
+
+    if file.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported."
+        )
+
+    # Read uploaded file into memory
     file_bytes = await file.read()
+
+    try:
+        # Extract text from the uploaded resume
+        resume_text = extract_text_from_pdf(file_bytes)
+
+        # Calculate rule-based ATS score
+        ats_result = calculate_ats_score(resume_text)
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+    # Build the user prompt for the LLM
     
-    # 2. Extract text
-    resume_text = extract_text_from_pdf(file_bytes)
-    
-    # Heuristic scoring
-    heuristics = calculate_ats_score(resume_text)
+
+    user_prompt = f"""
+Resume Content:
+
+{resume_text}
+
+Current ATS Score:
+{ats_result['ats_score']}/100
+
+Rule-Based Feedback:
+{chr(10).join(ats_result['feedback'])}
+
+Provide a detailed resume review and suggest improvements.
+"""
+
+   
+    # Stream AI response
 
     async def event_generator():
-        if not resume_text:
-            error_data = {
-                "type": "error",
-                "message": "Could not extract readable text from the uploaded PDF. Please verify that it is not scanned/empty."
-            }
-            yield f"data: {json.dumps(error_data)}\n\n"
-            return
+        """
+        Streams the ATS score first, followed by
+        the AI-generated resume analysis.
+        """
 
-        # Stream heuristic results first
-        heuristics_data = {
-            "type": "heuristics",
-            "score": heuristics["score"],
-            "deductions": heuristics["deductions"],
-            "word_count": heuristics["word_count"],
-            "has_email": heuristics["has_email"],
-            "has_phone": heuristics["has_phone"],
-            "action_verb_count": heuristics["action_verb_count"]
+        # Send ATS score
+        yield {
+            "event": "ats_score",
+            "data": f"ATS Score: {ats_result['ats_score']}/100"
         }
-        yield f"data: {json.dumps(heuristics_data)}\n\n"
 
-        # Construct LLM prompt
-        prompt = f"Analyze the following resume for the target role: {target_role}\n\nResume Text:\n{resume_text}"
-        system_instruction = RESUME_ANALYZER_PROMPT.format(target_role=target_role)
+        # Send rule-based feedback
+        if ats_result["feedback"]:
+            yield {
+                "event": "feedback",
+                "data": "\n".join(ats_result["feedback"])
+            }
 
-        # Stream LLM response
-        async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
-            yield chunk
+        # Stream AI response token-by-token
+        for chunk in stream_completion(
+            RESUME_ANALYZER_PROMPT,
+            user_prompt,
+        ):
+            yield {
+                "event": "message",
+                "data": chunk,
+            }
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
+    return EventSourceResponse(event_generator())
