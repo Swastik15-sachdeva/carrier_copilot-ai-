@@ -1,76 +1,129 @@
+"""
+ats_scorer.py
+
+This module provides a simple rule-based ATS (Applicant Tracking System)
+scoring system.
+
+Responsibilities:
+- Evaluate resume completeness.
+- Check for common resume sections.
+- Calculate an ATS score.
+- Return feedback that can be combined with AI analysis.
+
+Note:
+This is not a replacement for AI analysis.
+Instead, it provides a baseline ATS score before sending
+the resume to the LLM.
+"""
+
 import re
+
+# ------------------------------------------------------------------
+# Common resume sections expected by most ATS systems.
+# ------------------------------------------------------------------
+
+REQUIRED_SECTIONS = {
+    "Contact Information": [
+        "email",
+        "phone",
+        "contact"
+    ],
+    "Education": [
+        "education"
+    ],
+    "Experience": [
+        "experience",
+        "employment",
+        "work experience"
+    ],
+    "Skills": [
+        "skills",
+        "technical skills"
+    ],
+    "Projects": [
+        "projects"
+    ],
+}
+
 
 def calculate_ats_score(resume_text: str) -> dict:
     """
-    Calculate basic rule-based heuristics to give an initial ATS profile.
-    Returns a dictionary with details and a base score out of 100.
+    Calculate a basic ATS score using rule-based checks.
+
+    Parameters
+    ----------
+    resume_text : str
+        Extracted resume text.
+
+    Returns
+    -------
+    dict
+        ATS score and feedback.
     """
-    score = 100
-    deductions = []
-    
-    # 1. Word Count check
-    word_count = len(resume_text.split())
-    if word_count < 100:
-        score -= 25
-        deductions.append("Resume is too short (under 100 words), lacking detailed content.")
-    elif word_count < 300:
-        score -= 10
-        deductions.append("Resume is brief (under 300 words). Add more details to projects and experiences.")
-    elif word_count > 1200:
-        score -= 10
-        deductions.append("Resume is very long (over 1200 words). Aim for concise, impactful descriptions.")
 
-    # 2. Check for contact information
-    email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', resume_text)
-    # Match standard US formats and simple 10-digit international/Indian numbers
-    phone_match = re.search(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\+?\d{1,3}[-.\s]?\d{9,11}', resume_text)
-    
-    if not email_match:
-        score -= 15
-        deductions.append("Email address not found. Ensure contact details are clear.")
-    if not phone_match:
-        score -= 10
-        deductions.append("Phone number not found. Ensure employers can contact you.")
+    score = 0
+    feedback = []
 
-    # 3. Check for standard sections
-    sections = {
-        "experience": [r"experience", r"employment", r"work history", r"professional background", r"professional experience"],
-        "education": [r"education", r"academic", r"degree", r"university", r"college", r"education qualifications"],
-        "skills": [r"skills", r"technologies", r"technical strengths", r"expertise", r"core competencies"],
-        "projects": [r"projects", r"personal projects", r"key achievements", r"academic projects"]
-    }
-    
-    for section_name, patterns in sections.items():
-        found = False
-        for pattern in patterns:
-            if re.search(r'\b' + pattern + r'\b', resume_text, re.IGNORECASE):
-                found = True
-                break
-        if not found:
-            score -= 10
-            deductions.append(f"Missing a distinct '{section_name.capitalize()}' section.")
+    # Convert to lowercase for case-insensitive matching
+    text = resume_text.lower()
 
-    # 4. Check for action verbs
-    action_verbs = ["led", "developed", "managed", "designed", "created", "built", "implemented", "achieved", 
-                    "engineered", "optimized", "increased", "solved", "delivered", "coordinated", "collaborated",
-                    "facilitated", "supervised", "pioneered", "overhauled"]
-    verb_count = 0
-    for verb in action_verbs:
-        matches = re.findall(r'\b' + verb + r'\b', resume_text, re.IGNORECASE)
-        verb_count += len(matches)
-        
-    if verb_count < 3:
-        score -= 10
-        deductions.append("Few action verbs found. Use verbs like 'designed', 'optimized', or 'pioneered' to describe tasks.")
+    # --------------------------------------------------------------
+    # Check for required resume sections
+    # --------------------------------------------------------------
 
-    # Bound score between 20 and 100
-    score = max(20, min(score, 100))
-    
+    section_score = 15
+
+    for section, keywords in REQUIRED_SECTIONS.items():
+
+        found = any(keyword in text for keyword in keywords)
+
+        if found:
+            score += section_score
+        else:
+            feedback.append(f"Missing or unclear {section} section.")
+
+    # --------------------------------------------------------------
+    # Check for an email address
+    # --------------------------------------------------------------
+
+    email_pattern = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+
+    if re.search(email_pattern, resume_text):
+        score += 10
+    else:
+        feedback.append("No email address detected.")
+
+    # --------------------------------------------------------------
+    # Check for a phone number
+    # --------------------------------------------------------------
+
+    phone_pattern = r"\+?\d[\d\s\-]{8,}"
+
+    if re.search(phone_pattern, resume_text):
+        score += 10
+    else:
+        feedback.append("No phone number detected.")
+
+    # --------------------------------------------------------------
+    # Resume Length
+    # --------------------------------------------------------------
+
+    words = resume_text.split()
+
+    if len(words) >= 250:
+        score += 5
+    else:
+        feedback.append(
+            "Resume appears too short. Consider adding more detail."
+        )
+
+    # --------------------------------------------------------------
+    # Cap score at 100
+    # --------------------------------------------------------------
+
+    score = min(score, 100)
+
     return {
-        "score": score,
-        "deductions": deductions,
-        "word_count": word_count,
-        "has_email": bool(email_match),
-        "has_phone": bool(phone_match),
-        "action_verb_count": verb_count
+        "ats_score": score,
+        "feedback": feedback
     }
