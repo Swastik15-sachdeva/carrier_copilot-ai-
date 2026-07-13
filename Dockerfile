@@ -1,17 +1,37 @@
+# ---------------------------------------------------------
+# Base Image
+#
+# Use the official lightweight Python image.
+# ---------------------------------------------------------
 FROM python:3.11-slim
 
+# ---------------------------------------------------------
+# Set the working directory inside the container.
+# ---------------------------------------------------------
 WORKDIR /app
 
-# Install dependencies first
-COPY backend/requirements.txt /app/backend/requirements.txt
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+# ---------------------------------------------------------
+# Copy the dependency file first.
+# This improves Docker build caching.
+# ---------------------------------------------------------
+COPY requirements.txt .
 
-# Copy source code
-COPY backend /app/backend
-COPY frontend /app/frontend
+# ---------------------------------------------------------
+# Install Python dependencies.
+# ---------------------------------------------------------
+RUN pip install --no-cache-dir -r requirements.txt
 
-WORKDIR /app/backend
+# ---------------------------------------------------------
+# Copy the application source code.
+# ---------------------------------------------------------
+COPY . .
 
+# ---------------------------------------------------------
+# Expose the application port.
+# ---------------------------------------------------------
 EXPOSE 8000
 
+# ---------------------------------------------------------
+# Start the FastAPI application.
+# ---------------------------------------------------------
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
