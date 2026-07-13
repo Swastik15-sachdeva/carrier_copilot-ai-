@@ -27,33 +27,80 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
             yield chunk
         return
 
+    model_candidates = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-pro']
+    
     try:
-        # Re-configure to capture runtime updates or frontend custom keys
         genai.configure(api_key=key)
-        
-        # Instantiate model with system instructions
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
-            system_instruction=system_instruction
-        )
-        
-        # Call the async generate method with streaming
-        response = await model.generate_content_async(prompt, stream=True)
-        async for chunk in response:
-            if chunk.text:
-                yield f"data: {chunk.text}\n\n"
     except Exception as e:
-        error_msg = f"[Error communicating with Gemini API: {str(e)}]"
-        yield f"data: {error_msg}\n\n"
+        yield f"data: [API Configuration Error: {str(e)}. Falling back to Demo/Mock mode...]\n\n"
+        async for chunk in get_mock_stream_response(prompt, system_instruction):
+            yield chunk
+        return
+
+    success = False
+    last_error = None
+
+    for model_name in model_candidates:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_instruction
+            )
+            response = await model.generate_content_async(prompt, stream=True)
+            response_iter = response.__aiter__()
+            
+            # Verify the model starts streaming successfully
+            try:
+                first_chunk = await response_iter.__anext__()
+                success = True
+                if first_chunk.text:
+                    yield f"data: {first_chunk.text}\n\n"
+            except StopAsyncIteration:
+                success = True
+                break
+
+            if success:
+                try:
+                    while True:
+                        chunk = await response_iter.__anext__()
+                        if chunk.text:
+                            yield f"data: {chunk.text}\n\n"
+                except StopAsyncIteration:
+                    pass
+                break
+        except Exception as e:
+            last_error = e
+            print(f"Failed to use model '{model_name}': {e}")
+            continue
+
+    if not success:
+        yield f"data: [Gemini API Error (All models failed): {str(last_error)}. Falling back to Demo/Mock mode...]\n\n"
+        async for chunk in get_mock_stream_response(prompt, system_instruction):
+            yield chunk
 
 
-async def get_mock_stream_response(prompt: str, system_instruction: str = None):
+async def get_mock_stream_response(prompt, system_instruction: str = None):
     """
     Generates tailored mock streaming responses depending on the prompt type.
     Provides a premium demo experience when no API Key is configured.
     """
     sys_lower = (system_instruction or "").lower()
-    prompt_lower = prompt.lower()
+    
+    if isinstance(prompt, list):
+        last_msg = ""
+        for msg in reversed(prompt):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                parts = msg.get("parts", [])
+                if parts and isinstance(parts, list):
+                    part = parts[0]
+                    if isinstance(part, dict):
+                        last_msg = part.get("text", "")
+                    else:
+                        last_msg = str(part)
+                break
+        prompt_lower = last_msg.lower()
+    else:
+        prompt_lower = str(prompt).lower()
     
     # 1. Resume Analyzer
     if "ats_score_estimate" in sys_lower or "resume reviewer" in sys_lower:
@@ -86,20 +133,27 @@ ATS_SCORE_ESTIMATE: 65
 
 Welcome to your learning journey! Here is your step-by-step phased roadmap.
 
+#### Official Reference Roadmaps from roadmap.sh
+For interactive developer paths, check out the official roadmaps on [roadmap.sh](https://roadmap.sh):
+- [Frontend Developer Roadmap](https://roadmap.sh/frontend)
+- [Backend Developer Roadmap](https://roadmap.sh/backend)
+- [React Developer Roadmap](https://roadmap.sh/react)
+- [Python Developer Roadmap](https://roadmap.sh/python)
+
 #### Phase 1: Foundations (Month 1-2)
 * **Core Topics**: Master the core programming syntax, basic algorithms, data structures, and layout standards (HTML5, modern CSS flexbox/grid).
 * **Hands-on Projects**: Create a personal portfolio website and 2-3 utility scripts (e.g. calculator, task organizer).
-* **Suggested Resources**: MDN Web Docs, freeCodeCamp, official python tutorials.
+* **Suggested Resources**: MDN Web Docs, freeCodeCamp, [roadmap.sh JavaScript Guide](https://roadmap.sh/javascript).
 
 #### Phase 2: Core Technologies & APIs (Month 3-4)
 * **Core Topics**: Learn Web Frameworks (like FastAPI or React), RESTful architectural principles, database fundamentals (SQL, SQLite), and Git version control.
 * **Hands-on Projects**: Develop a full-stack CRUD application with database persistence and user authentication.
-* **Suggested Resources**: FastAPI official docs, PostgreSQL tutorials, Git book.
+* **Suggested Resources**: FastAPI official docs, PostgreSQL tutorials, [roadmap.sh SQL Guide](https://roadmap.sh/sql).
 
 #### Phase 3: Systems & Deployment (Month 5-6)
 * **Core Topics**: Containerization (Docker), cloud deployment essentials (AWS/Render), CI/CD pipelines, and writing comprehensive test suites.
 * **Hands-on Projects**: Containerize your CRUD application, set up a GitHub Actions workflow, and deploy it to a cloud hosting platform.
-* **Suggested Resources**: Docker curriculum, AWS Academy, pytest/jest docs.
+* **Suggested Resources**: Docker curriculum, AWS Academy, [roadmap.sh DevOps Roadmap](https://roadmap.sh/devops).
 """
     # 3. Mock Interview
     elif "mock interview" in sys_lower or "recruiter" in sys_lower:

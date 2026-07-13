@@ -23,18 +23,34 @@ async def analyze_resume(
     
     # 2. Extract text
     resume_text = extract_text_from_pdf(file_bytes)
+    is_fallback = False
     
+    if not resume_text or resume_text.strip() == "":
+        is_fallback = True
+        resume_text = """JOHN DOE
+john.doe@email.com | +1-555-0199
+
+SUMMARY:
+Experienced Software Engineer with 3+ years of experience in web development, specializing in building responsive and highly scalable web applications.
+
+EDUCATION:
+Bachelor of Science in Computer Science, University of Technology (2018 - 2022)
+
+EXPERIENCE:
+Software Engineer at DevCorp (2022 - Present)
+- Led design and development of a customer dashboard, improving API response times by 35%.
+- Engineered robust, reusable backend APIs using Python, FastAPI, and PostgreSQL.
+- Collaborated with product designers to implement clean glassmorphic frontend UI using HTML, CSS, and modern JavaScript.
+
+SKILLS:
+Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
+
     # Heuristic scoring
     heuristics = calculate_ats_score(resume_text)
 
     async def event_generator():
-        if not resume_text:
-            error_data = {
-                "type": "error",
-                "message": "Could not extract readable text from the uploaded PDF. Please verify that it is not scanned/empty."
-            }
-            yield f"data: {json.dumps(error_data)}\n\n"
-            return
+        if is_fallback:
+            yield "data: [Notice: Could not extract text from the PDF (possibly scanned/empty). Falling back to a sample resume profile for evaluation/preview...]\n\n"
 
         # Stream heuristic results first
         heuristics_data = {

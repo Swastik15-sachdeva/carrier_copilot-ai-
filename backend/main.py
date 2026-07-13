@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from routers import resume, roadmap, interview, cover_letter
+from routers import resume, roadmap, interview, cover_letter, mentor_tools
 
 app = FastAPI(
     title="AI Career Copilot API",
@@ -24,6 +24,7 @@ app.include_router(resume.router)
 app.include_router(roadmap.router)
 app.include_router(interview.router)
 app.include_router(cover_letter.router)
+app.include_router(mentor_tools.router)
 
 @app.get("/health")
 def health_check():
@@ -31,7 +32,7 @@ def health_check():
     return {"status": "ok"}
 
 # Mount the static frontend assets at the root index
-frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
 
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
