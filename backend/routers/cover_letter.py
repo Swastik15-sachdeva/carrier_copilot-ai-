@@ -1,32 +1,113 @@
-from fastapi import APIRouter, Header
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from services.llm_client import stream_gemini_response
-from prompts import COVER_LETTER_PROMPT
+"""
+cover_letter.py
 
-router = APIRouter(prefix="/cover-letter", tags=["cover-letter"])
+API endpoints for AI-generated cover letters.
+
+Responsibilities:
+- Receive resume text and job description.
+- Build a prompt for the LLM.
+- Stream a personalized cover letter back to the client.
+
+This endpoint does not require a PDF upload because
+the frontend sends the extracted resume text.
+"""
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+from sse_starlette.sse import EventSourceResponse
+
+from prompts import COVER_LETTER_PROMPT
+from services.llm_client import stream_completion
+
+
+# Create router instance
+
+
+router = APIRouter()
+
+
+
+# Request Model
+#
+# Validates the incoming JSON request automatically.
+
 
 class CoverLetterRequest(BaseModel):
-    resume_text: str
-    job_description: str
 
-@router.post("")
-async def generate_cover_letter(
-    req: CoverLetterRequest,
-    x_gemini_api_key: str = Header(None)
-):
-    """
-    Generates a tailored cover letter mapping the candidate's resume achievements to a job description.
-    Streams back the generated markdown chunks.
-    """
-    prompt = f"Create a custom cover letter based on candidate resume and job description."
-    system_instruction = COVER_LETTER_PROMPT.format(
-        resume_text=req.resume_text,
-        job_description=req.job_description
-    )
-    
-    return StreamingResponse(
-        stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key),
-        media_type="text/event-stream"
+    resume_text: str = Field(
+        ...,
+        example="Experienced Python developer with FastAPI and SQL."
     )
 
+    job_description: str = Field(
+        ...,
+        example="Looking for a Backend Developer skilled in Python."
+    )
+
+
+
+# Cover Letter Generation Endpoint
+
+
+@router.post("/")
+async def generate_cover_letter(request: CoverLetterRequest):
+    """
+    Generate a personalized cover letter.
+
+    Parameters
+    ----------
+    request : CoverLetterRequest
+
+    Returns
+    -------
+    EventSourceResponse
+        Streams the generated cover letter.
+    """
+
+  
+    # Build the prompt using the resume and job description.
+   
+
+    user_prompt = f"""
+Candidate Resume
+
+{request.resume_text}
+
+--------------------------------------------------
+
+Job Description
+
+{request.job_description}
+
+--------------------------------------------------
+
+Write a professional cover letter that:
+
+- Matches the candidate's experience to the job.
+- Highlights the most relevant skills.
+- Uses a confident and professional tone.
+- Keeps the content concise.
+- Ends with a polite closing statement.
+"""
+
+  
+    # Stream the generated cover letter.
+   
+
+    async def event_generator():
+        """
+        Streams the cover letter progressively so the
+        frontend can display it in real time.
+        """
+
+        for chunk in stream_completion(
+            COVER_LETTER_PROMPT,
+            user_prompt,
+        ):
+
+            yield {
+                "event": "message",
+                "data": chunk,
+            }
+
+    return EventSourceResponse(event_generator())
