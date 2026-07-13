@@ -1,16 +1,39 @@
-import os
+"""
+main.py
+
+Entry point for the AI Career Copilot backend.
+
+Responsibilities:
+- Initialize the FastAPI application.
+- Configure middleware (CORS).
+- Register all feature routers.
+- Provide a health check endpoint for monitoring and AWS deployment.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from routers import resume, roadmap, interview, cover_letter
 
-app = FastAPI(
-    title="AI Career Copilot API",
-    description="Full-stack AI Career Copilot MVP backend endpoints",
-    version="1.0"
+# Import feature routers
+from routers import (
+    resume,
+    roadmap,
+    interview,
+    cover_letter,
 )
 
-# Enable CORS for frontend flexibility
+# Create the FastAPI application
+app = FastAPI(
+    title="AI Career Copilot API",
+    version="1.0.0",
+    description="Backend API for AI-powered career assistance."
+)
+
+
+# CORS Configuration
+#
+# Allows the frontend application to communicate with this backend.
+# In production, replace "*" with your frontend domain.
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,21 +42,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
-app.include_router(resume.router)
-app.include_router(roadmap.router)
-app.include_router(interview.router)
-app.include_router(cover_letter.router)
+
+# Register API routers
+#
+# Each router represents one major feature of the application.
+# This keeps the project modular and easy to maintain.
+
+app.include_router(
+    resume.router,
+    prefix="/resume",
+    tags=["Resume Analysis"],
+)
+
+app.include_router(
+    roadmap.router,
+    prefix="/roadmap",
+    tags=["Career Roadmap"],
+)
+
+app.include_router(
+    interview.router,
+    prefix="/interview",
+    tags=["Mock Interview"],
+)
+
+app.include_router(
+    cover_letter.router,
+    prefix="/cover-letter",
+    tags=["Cover Letter"],
+)
+
+
+# Health Check Endpoint
+# Used by AWS App Runner and developers to verify that
+# the backend service is running successfully.
 
 @app.get("/health")
 def health_check():
-    """Simple health check endpoint for deployment monitoring."""
-    return {"status": "ok"}
-
-# Mount the static frontend assets at the root index
-frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
-
-if os.path.exists(frontend_dir):
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
-else:
-    print(f"Warning: Frontend directory '{frontend_dir}' not found. Serving API routes only.")
+    """
+    Returns the current status of the backend service.
+    """
+    return {
+        "status": "ok",
+        "service": "AI Career Copilot Backend"
+    }
