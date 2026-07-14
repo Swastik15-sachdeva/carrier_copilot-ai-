@@ -1,22 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
+import Mermaid from './Mermaid';
 
-export default function ResourceFinder({ apiKey }) {
+export default function ResourceFinder() {
   const [topic, setTopic] = useState('');
   const [targetRole, setTargetRole] = useState('');
   const [loading, setLoading] = useState(false);
   const [resources, setResources] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setResources('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/mentor/learning-resources', {
@@ -25,14 +40,13 @@ export default function ResourceFinder({ apiKey }) {
         body: JSON.stringify({
           topic: topic.trim(),
           target_role: targetRole.trim()
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
         throw new Error('Resources search server error.');
       }
-
-      setLoading(false);
 
       await readStream(
         response,
@@ -40,7 +54,10 @@ export default function ResourceFinder({ apiKey }) {
           setResources((prev) => prev + chunk);
         }
       );
+
+      setLoading(false);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       alert('An error occurred during resource curation.');
       setLoading(false);
@@ -97,7 +114,7 @@ export default function ResourceFinder({ apiKey }) {
           </div>
         )}
 
-        {loading && (
+        {loading && !resources && (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Searching courses, directories, and documentation...</p>
@@ -106,7 +123,19 @@ export default function ResourceFinder({ apiKey }) {
 
         {resources && (
           <div className="stream-output markdown-body">
-            <ReactMarkdown>{resources}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  const match = /language-mermaid/.test(className || '');
+                  if (!inline && match) {
+                    return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                  }
+                  return <code className={className} {...props}>{children}</code>;
+                }
+              }}
+            >
+              {resources}
+            </ReactMarkdown>
           </div>
         )}
       </div>

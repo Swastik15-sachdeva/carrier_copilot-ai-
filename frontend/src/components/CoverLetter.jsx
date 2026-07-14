@@ -1,22 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
 
-export default function CoverLetter({ apiKey }) {
+export default function CoverLetter() {
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [letterContent, setLetterContent] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setLetterContent('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/cover-letter', {
@@ -25,14 +39,13 @@ export default function CoverLetter({ apiKey }) {
         body: JSON.stringify({
           resume_text: resumeText.trim(),
           job_description: jobDescription.trim()
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
         throw new Error('Letter generation server error.');
       }
-
-      setLoading(false);
 
       await readStream(
         response,
@@ -40,7 +53,10 @@ export default function CoverLetter({ apiKey }) {
           setLetterContent((prev) => prev + chunk);
         }
       );
+
+      setLoading(false);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       alert('An error occurred during cover letter generation.');
       setLoading(false);
@@ -110,7 +126,7 @@ export default function CoverLetter({ apiKey }) {
           </div>
         )}
 
-        {loading && (
+        {loading && !letterContent && (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Drafting customized cover letter...</p>

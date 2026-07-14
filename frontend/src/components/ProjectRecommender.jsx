@@ -1,22 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
+import Mermaid from './Mermaid';
 
-export default function ProjectRecommender({ apiKey }) {
+export default function ProjectRecommender() {
   const [currentSkills, setCurrentSkills] = useState('');
   const [targetRole, setTargetRole] = useState('');
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setRecommendations('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/mentor/project-recommendations', {
@@ -25,14 +40,13 @@ export default function ProjectRecommender({ apiKey }) {
         body: JSON.stringify({
           current_skills: currentSkills.trim(),
           target_role: targetRole.trim()
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
         throw new Error('Project recommendations server error.');
       }
-
-      setLoading(false);
 
       await readStream(
         response,
@@ -40,7 +54,10 @@ export default function ProjectRecommender({ apiKey }) {
           setRecommendations((prev) => prev + chunk);
         }
       );
+
+      setLoading(false);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       alert('An error occurred during project recommendations.');
       setLoading(false);
@@ -97,7 +114,7 @@ export default function ProjectRecommender({ apiKey }) {
           </div>
         )}
 
-        {loading && (
+        {loading && !recommendations && (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Designing system architectures, data flows, and build steps...</p>
@@ -106,7 +123,19 @@ export default function ProjectRecommender({ apiKey }) {
 
         {recommendations && (
           <div className="stream-output markdown-body">
-            <ReactMarkdown>{recommendations}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  const match = /language-mermaid/.test(className || '');
+                  if (!inline && match) {
+                    return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                  }
+                  return <code className={className} {...props}>{children}</code>;
+                }
+              }}
+            >
+              {recommendations}
+            </ReactMarkdown>
           </div>
         )}
       </div>

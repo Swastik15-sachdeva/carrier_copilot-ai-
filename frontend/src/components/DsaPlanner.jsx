@@ -1,23 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
+import Mermaid from './Mermaid';
 
-export default function DsaPlanner({ apiKey }) {
+export default function DsaPlanner() {
   const [targetRole, setTargetRole] = useState('');
   const [timeline, setTimeline] = useState('1 Month');
   const [currentLevel, setCurrentLevel] = useState('Intermediate');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setPlan('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/mentor/dsa-planner', {
@@ -27,14 +42,13 @@ export default function DsaPlanner({ apiKey }) {
           target_role: targetRole.trim(),
           timeline: timeline,
           current_level: currentLevel
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
         throw new Error('DSA plan generation server error.');
       }
-
-      setLoading(false);
 
       await readStream(
         response,
@@ -42,7 +56,10 @@ export default function DsaPlanner({ apiKey }) {
           setPlan((prev) => prev + chunk);
         }
       );
+
+      setLoading(false);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       alert('An error occurred during DSA practice planner generation.');
       setLoading(false);
@@ -115,7 +132,7 @@ export default function DsaPlanner({ apiKey }) {
           </div>
         )}
 
-        {loading && (
+        {loading && !plan && (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Designing structures, data patterns, and practice roadmap...</p>
@@ -124,7 +141,19 @@ export default function DsaPlanner({ apiKey }) {
 
         {plan && (
           <div className="stream-output markdown-body">
-            <ReactMarkdown>{plan}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  const match = /language-mermaid/.test(className || '');
+                  if (!inline && match) {
+                    return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                  }
+                  return <code className={className} {...props}>{children}</code>;
+                }
+              }}
+            >
+              {plan}
+            </ReactMarkdown>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
 
-export default function MockInterview({ apiKey }) {
+export default function MockInterview() {
   const [targetRole, setTargetRole] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [sessionId, setSessionId] = useState('');
@@ -31,9 +31,6 @@ export default function MockInterview({ apiKey }) {
     setStreamingMessage('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/interview/chat', {
@@ -50,7 +47,6 @@ export default function MockInterview({ apiKey }) {
         throw new Error('Interview setup error.');
       }
 
-      setLoading(false);
       let content = '';
       
       await readStream(
@@ -63,6 +59,7 @@ export default function MockInterview({ apiKey }) {
 
       setMessages([{ role: 'model', text: content }]);
       setStreamingMessage('');
+      setLoading(false);
     } catch (error) {
       console.error(error);
       alert('Failed to start mock interview.');
@@ -82,9 +79,6 @@ export default function MockInterview({ apiKey }) {
     setStreamingMessage('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/interview/chat', {
@@ -101,7 +95,6 @@ export default function MockInterview({ apiKey }) {
         throw new Error('Chat server error.');
       }
 
-      setLoading(false);
       let content = '';
 
       await readStream(
@@ -114,6 +107,7 @@ export default function MockInterview({ apiKey }) {
 
       setMessages((prev) => [...prev, { role: 'model', text: content }]);
       setStreamingMessage('');
+      setLoading(false);
     } catch (error) {
       console.error(error);
       alert('An error occurred during communication.');
@@ -131,9 +125,6 @@ export default function MockInterview({ apiKey }) {
     setStreamingMessage('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/interview/chat', {
@@ -150,7 +141,6 @@ export default function MockInterview({ apiKey }) {
         throw new Error('Termination error.');
       }
 
-      setLoading(false);
       let content = '';
 
       await readStream(
@@ -163,6 +153,7 @@ export default function MockInterview({ apiKey }) {
 
       setMessages((prev) => [...prev, { role: 'model', text: content }]);
       setStreamingMessage('');
+      setLoading(false);
     } catch (error) {
       console.error(error);
       alert('Failed to end interview gracefully.');

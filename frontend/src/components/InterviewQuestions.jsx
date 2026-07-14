@@ -1,22 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
+import Mermaid from './Mermaid';
 
-export default function InterviewQuestions({ apiKey }) {
+export default function InterviewQuestions() {
   const [targetRole, setTargetRole] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Entry Level (0-2 years)');
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setQuestions('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/mentor/interview-questions', {
@@ -25,14 +40,13 @@ export default function InterviewQuestions({ apiKey }) {
         body: JSON.stringify({
           target_role: targetRole.trim(),
           experience_level: experienceLevel
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
         throw new Error('Questions generation server error.');
       }
-
-      setLoading(false);
 
       await readStream(
         response,
@@ -40,7 +54,10 @@ export default function InterviewQuestions({ apiKey }) {
           setQuestions((prev) => prev + chunk);
         }
       );
+
+      setLoading(false);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       alert('An error occurred during interview question generation.');
       setLoading(false);
@@ -100,7 +117,7 @@ export default function InterviewQuestions({ apiKey }) {
           </div>
         )}
 
-        {loading && (
+        {loading && !questions && (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Formulating technical and behavioral scenario questions...</p>
@@ -109,7 +126,19 @@ export default function InterviewQuestions({ apiKey }) {
 
         {questions && (
           <div className="stream-output markdown-body">
-            <ReactMarkdown>{questions}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  const match = /language-mermaid/.test(className || '');
+                  if (!inline && match) {
+                    return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                  }
+                  return <code className={className} {...props}>{children}</code>;
+                }
+              }}
+            >
+              {questions}
+            </ReactMarkdown>
           </div>
         )}
       </div>

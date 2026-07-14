@@ -1,22 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
 
-export default function LinkedinOptimizer({ apiKey }) {
+export default function LinkedinOptimizer() {
   const [targetRole, setTargetRole] = useState('');
   const [resumeText, setResumeText] = useState('');
   const [loading, setLoading] = useState(false);
   const [optimization, setOptimization] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setOptimization('');
 
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) {
-      headers['X-Gemini-API-Key'] = apiKey;
-    }
 
     try {
       const response = await fetch('/mentor/linkedin-optimizer', {
@@ -25,14 +39,13 @@ export default function LinkedinOptimizer({ apiKey }) {
         body: JSON.stringify({
           target_role: targetRole.trim(),
           resume_text: resumeText.trim()
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
         throw new Error('LinkedIn optimization server error.');
       }
-
-      setLoading(false);
 
       await readStream(
         response,
@@ -40,7 +53,10 @@ export default function LinkedinOptimizer({ apiKey }) {
           setOptimization((prev) => prev + chunk);
         }
       );
+
+      setLoading(false);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       alert('An error occurred during LinkedIn optimization.');
       setLoading(false);
@@ -110,7 +126,7 @@ export default function LinkedinOptimizer({ apiKey }) {
           </div>
         )}
 
-        {loading && (
+        {loading && !optimization && (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Drafting SEO headlines and first-person summaries...</p>

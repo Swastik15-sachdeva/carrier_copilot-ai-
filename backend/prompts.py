@@ -26,17 +26,19 @@ Target Job Role: {target_role}
 
 Your response must be in clean Markdown format and follow this structure:
 1. **Introduction**: A brief overview of the learning journey and typical timeline.
-2. **Phased Roadmap**:
+2. **Learning Phases Workflow Diagram**:
+   - Provide a visual flowchart using **Mermaid syntax** (fenced in a ```mermaid code block) representing the progression of learning phases and key milestones.
+3. **Phased Roadmap Details**:
    - Divide the timeline logically (e.g., Month 1-2: Foundations, Month 3-4: Intermediate & Projects, Month 5-6: Advanced & Portfolio).
    - For each phase, provide:
      - **Core Topics**: Bullet points of specific skills to master.
      - **Hands-on Projects**: 1-2 concrete project suggestions to apply the skills.
      - **Suggested Resources**: Recommend specific topics, concepts, or free platforms (e.g., freeCodeCamp, MDN, Kaggle, official docs) to check out.
-3. **Official Reference Roadmaps from roadmap.sh**:
+4. **Official Reference Roadmaps from roadmap.sh**:
    - Recommend and provide direct markdown hyperlinks to relevant, official developer paths on [roadmap.sh](https://roadmap.sh) that match the target job role or required tech stack (e.g., [Frontend Roadmap](https://roadmap.sh/frontend), [Backend Roadmap](https://roadmap.sh/backend), [Full Stack Roadmap](https://roadmap.sh/full-stack), [Python Roadmap](https://roadmap.sh/python), [React Roadmap](https://roadmap.sh/react), [Android Roadmap](https://roadmap.sh/android), [DevOps Roadmap](https://roadmap.sh/devops), [AI / Data Scientist Roadmap](https://roadmap.sh/ai), etc.). Always suggest at least 1-2 relevant official links from roadmap.sh.
-4. **General Upskilling Advice**: Tips on portfolio building, resume integration, and job search strategies.
+5. **General Upskilling Advice**: Tips on portfolio building, resume integration, and job search strategies.
 
-Be encouraging, specific, and practical.
+Be encouraging, specific, and practical. Ensure all Mermaid code blocks are syntactically valid.
 """
 
 INTERVIEW_SYSTEM_PROMPT = """
@@ -114,13 +116,22 @@ Current Level: {current_level}
 
 Your response must be in clean Markdown format and follow this structure:
 1. **Plan Overview**: A summary of the path, pacing strategy, and weekly coding hours recommended.
-2. **Weekly/Phased Schedule**:
-   - Break down the timeline into phases (e.g., Week 1-2, Week 3-4, etc. depending on their total duration).
-   - Specify **Topics to Cover** (e.g., Arrays, Two Pointers, Trees, Backtracking, DP) with conceptual explanations.
-   - List **Key Problem Types** to master (e.g., Sliding Window maximum, 3Sum, Tree traversal, Knapsack).
-   - Recommend standard practice patterns (e.g. Breadth-First Search, Floyd's Cycle detection).
-3. **Resource & Practice Platforms**: Suggest high-quality platforms (LeetCode, HackerRank, GeeksforGeeks, NeetCode, etc.) and list specific lists to focus on (e.g., Blind 75, NeetCode 150).
-4. **Mock Prep & Strategies**: Best practices for dry-running code, optimization steps, and managing runtime/memory complexity analysis during live coding.
+2. **DSA Learning Pathway Diagram**:
+   - Provide a visual learning path flowchart using **Mermaid syntax** (fenced in a ```mermaid code block) showing the progression of topics (e.g., Arrays -> Linked Lists -> Trees -> Graphs -> Dynamic Programming).
+3. **Weekly/Phased Schedule Table**:
+   - Provide a structured Markdown table mapping out:
+     - Phase / Week
+     - Core Topics (e.g., Arrays, Two Pointers, DFS, DP)
+     - Key Problem Patterns (e.g., Sliding Window, Tree Traversals)
+     - Difficulty Target (e.g., LeetCode Easy/Medium)
+4. **Detailed Phase Breakdown**:
+   - Elaborate on each phase, providing conceptual explanations, recommended steps, and key problem scenarios.
+5. **Resource & Practice Platforms**: Suggest high-quality platforms (LeetCode, HackerRank, GeeksforGeeks, NeetCode, etc.) and list specific lists to focus on (e.g., Blind 75, NeetCode 150).
+6. **Mock Prep & Complexity Cheat Sheet**:
+   - Provide a Markdown table of common algorithms and their Time and Space complexity (Best, Average, Worst case).
+   - Practical advice on dry-running code and managing runtime/memory complexity analysis during live coding.
+
+Ensure all Mermaid blocks are valid and all complexity tables are clearly structured.
 """
 
 
@@ -133,9 +144,16 @@ Resume Highlights:
 {resume_text}
 
 Your response must be in clean Markdown format and follow this structure:
-1. **Headline Recommendations**: Provide 3 optional high-impact, SEO-optimized headlines tailored to the target role (incorporating keywords and value propositions).
+1. **Headline Recommendations**:
+   - Provide a Markdown table showing 3 optional high-impact, SEO-optimized headlines. The table should compare:
+     - Headline Option
+     - Key Focus / Value Proposition
+     - Recruiters' Target Keywords
 2. **"About" Section / Professional Summary**: A polished, ready-to-copy LinkedIn summary written in first-person (conversational yet professional) summarizing key skills, achievements, and core passions.
-3. **Work Experience Refinements**: Suggested bullet points for their main roles to increase visibility, focus on impact, and make them more scannable.
+3. **Work Experience Refinements**:
+   - Provide a Markdown table showing:
+     - Original Highlight (from Resume)
+     - Optimized LinkedIn Bullet Point (focused on impact, metrics, and active voice)
 4. **Featured Skills & Endorsements**: Recommend 10-15 specific skills to list in their profile to rank higher in recruiter searches.
 5. **Networking Tips**: Short advice on how to optimize their profile visibility and reach out to hiring managers.
 """
@@ -150,9 +168,10 @@ Target Role: {target_role}
 
 Your response must be in clean Markdown format and recommend exactly 3 projects. For each project, provide:
 1. **Project Title & Concept**: A unique name and a 2-sentence description of the project.
-2. **Target Technical Stack**: Recommendations for frontend, backend, databases, libraries, and dev tools.
-3. **Key Features & Requirements**: 4-5 bullet points of core functionalities.
-4. **Architecture & Data Flow**: A brief description of how parts of the app communicate (e.g., frontend calling FastAPI REST endpoints, database schemas, background workers).
+2. **Architecture & Data Flow Diagram**:
+   - Provide a system design flowchart using **Mermaid syntax** (fenced in a ```mermaid code block) visualizing how components communicate (e.g., Client -> API Gateway -> Backend microservices -> DB / Cache).
+3. **Target Technical Stack**: Recommendations for frontend, backend, databases, libraries, and dev tools.
+4. **Key Features & Requirements**: 4-5 bullet points of core functionalities.
 5. **Implementation Steps**: A step-by-step breakdown of how to build it (Phase 1: setup/database, Phase 2: core API, Phase 3: UI, Phase 4: deployment).
 6. **Stretch Goals / Advanced Features**: 2 ideas to make the project stand out to senior engineering recruiters.
 """

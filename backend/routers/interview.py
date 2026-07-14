@@ -49,8 +49,8 @@ async def interview_chat(
             "role": "user",
             "parts": [{"text": req.message}]
         })
-        # Pass full history to Gemini
-        prompt_content = history
+        # Pass sliding window history to Gemini (limit to last 6 messages)
+        prompt_content = history[-6:]
 
     # We need to capture the streamed output to append it to history for future turns.
     # We will wrap the streaming response.
@@ -72,5 +72,13 @@ async def interview_chat(
                 "parts": [{"text": full_response}]
             })
 
-    return StreamingResponse(response_accumulator_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        response_accumulator_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import SettingsModal from './components/SettingsModal';
+
 import ResumeScorer from './components/ResumeScorer';
 import CoverLetter from './components/CoverLetter';
 import CareerRoadmap from './components/CareerRoadmap';
@@ -14,17 +14,7 @@ import './App.css';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('resume-score');
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const handleSaveApiKey = (key) => {
-    setApiKey(key);
-    if (key) {
-      localStorage.setItem('gemini_api_key', key);
-    } else {
-      localStorage.removeItem('gemini_api_key');
-    }
-  };
 
   const getPageTitle = () => {
     const titles = {
@@ -44,25 +34,25 @@ export default function App() {
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'resume-score':
-        return <ResumeScorer apiKey={apiKey} />;
+        return <ResumeScorer />;
       case 'cover-letter':
-        return <CoverLetter apiKey={apiKey} />;
+        return <CoverLetter />;
       case 'roadmap':
-        return <CareerRoadmap apiKey={apiKey} />;
+        return <CareerRoadmap />;
       case 'mock-interview':
-        return <MockInterview apiKey={apiKey} />;
+        return <MockInterview />;
       case 'interview-questions':
-        return <InterviewQuestions apiKey={apiKey} />;
+        return <InterviewQuestions />;
       case 'dsa-practice':
-        return <DsaPlanner apiKey={apiKey} />;
+        return <DsaPlanner />;
       case 'linkedin-optimizer':
-        return <LinkedinOptimizer apiKey={apiKey} />;
+        return <LinkedinOptimizer />;
       case 'project-recommender':
-        return <ProjectRecommender apiKey={apiKey} />;
+        return <ProjectRecommender />;
       case 'resource-finder':
-        return <ResourceFinder apiKey={apiKey} />;
+        return <ResourceFinder />;
       default:
-        return <ResumeScorer apiKey={apiKey} />;
+        return <ResumeScorer />;
     }
   };
 
@@ -153,15 +143,7 @@ export default function App() {
           </button>
         </nav>
         
-        <div className="sidebar-footer">
-          <button 
-            id="settings-trigger" 
-            className="btn btn-secondary btn-full"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <span className="icon">⚙️</span> Settings
-          </button>
-        </div>
+
       </aside>
 
       {/* Main Content Area */}
@@ -169,15 +151,6 @@ export default function App() {
         {/* Top header bar */}
         <header className="top-bar">
           <h1>{getPageTitle()}</h1>
-          <div 
-            className="api-status-badge" 
-            id="api-status" 
-            title="Click to configure Gemini API Key"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <span className={`status-indicator ${apiKey ? 'green' : 'yellow'}`}></span>
-            <span className="status-text">{apiKey ? 'Live Gemini API' : 'Demo Mode (Mock)'}</span>
-          </div>
         </header>
         
         {/* Content Container */}
@@ -186,13 +159,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Settings Modal */}
-      <SettingsModal 
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        apiKey={apiKey}
-        onSaveKey={handleSaveApiKey}
-      />
     </div>
   );
 }

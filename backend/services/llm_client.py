@@ -27,7 +27,7 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
             yield chunk
         return
 
-    model_candidates = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-pro']
+    model_candidates = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-pro-latest', 'gemini-1.5-flash']
     
     try:
         genai.configure(api_key=key)
@@ -39,8 +39,11 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
 
     success = False
     last_error = None
+    should_fast_fail = False
 
     for model_name in model_candidates:
+        if should_fast_fail:
+            break
         try:
             model = genai.GenerativeModel(
                 model_name=model_name,
@@ -71,6 +74,13 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
         except Exception as e:
             last_error = e
             print(f"Failed to use model '{model_name}': {e}")
+            
+            status_code = getattr(e, 'code', None)
+            err_msg = str(e).lower()
+            if status_code in [400, 401, 403, 429] or "quota" in err_msg or "billing" in err_msg or "unauthorized" in err_msg or "key" in err_msg:
+                print(f"Fast failing candidate models due to persistent error: {e}")
+                should_fast_fail = True
+                break
             continue
 
     if not success:
