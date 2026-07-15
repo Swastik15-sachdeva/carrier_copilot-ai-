@@ -1,14 +1,14 @@
 import json
+import asyncio
 from fastapi import APIRouter, File, UploadFile, Form, Header
 from fastapi.responses import StreamingResponse
 from services.extract import extract_text_from_pdf
 from services.ats_scorer import calculate_ats_score
 from services.llm_client import stream_gemini_response
+from services.storage import SQLiteCache, generate_cache_key
 from prompts import RESUME_ANALYZER_PROMPT
 
 router = APIRouter(prefix="/resume", tags=["resume"])
-
-resume_cache = {}
 
 @router.post("/analyze")
 async def analyze_resume(
@@ -23,8 +23,8 @@ async def analyze_resume(
     # 1. Read PDF bytes
     file_bytes = await file.read()
     
-    # 2. Extract text
-    resume_text = extract_text_from_pdf(file_bytes)
+    # 2. Extract text (CPU bound, run in threadpool)
+    resume_text = await asyncio.to_thread(extract_text_from_pdf, file_bytes)
     if resume_text:
         # Standardize whitespace and limit text length to conserve tokens
         resume_text = " ".join(resume_text.split())
@@ -53,11 +53,12 @@ SKILLS:
 Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
 
     # Check Cache
-    cache_key = (hash(resume_text), target_role.strip().lower())
-    if cache_key in resume_cache:
+    cache_key = generate_cache_key("resume:v2", resume_text, target_role.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving resume analysis from cache!")
         async def cached_event_generator():
-            for event in resume_cache[cache_key]:
+            for event in cached:
                 yield event
         return StreamingResponse(
             cached_event_generator(),
@@ -69,8 +70,8 @@ Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
             }
         )
 
-    # Heuristic scoring
-    heuristics = calculate_ats_score(resume_text)
+    # Heuristic scoring (run in threadpool)
+    heuristics = await asyncio.to_thread(calculate_ats_score, resume_text)
 
     async def event_generator():
         accumulated_events = []
@@ -87,7 +88,18 @@ Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
             "word_count": heuristics["word_count"],
             "has_email": heuristics["has_email"],
             "has_phone": heuristics["has_phone"],
-            "action_verb_count": heuristics["action_verb_count"]
+            "action_verb_count": heuristics["action_verb_count"],
+            "quantifiable_metrics_count": heuristics["quantifiable_metrics_count"],
+            "has_github": heuristics["has_github"],
+            "has_linkedin": heuristics["has_linkedin"],
+            "sections_found": heuristics["sections_found"],
+            "sections_missing": heuristics["sections_missing"],
+            "has_placeholders": heuristics["has_placeholders"],
+            "placeholders_found": heuristics["placeholders_found"],
+            "buzzword_count": heuristics["buzzword_count"],
+            "buzzwords_found": heuristics["buzzwords_found"],
+            "has_dates": heuristics["has_dates"],
+            "date_count": heuristics["date_count"]
         }
         msg = f"data: {json.dumps(heuristics_data)}\n\n"
         accumulated_events.append(msg)
@@ -103,7 +115,7 @@ Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
             yield chunk
 
         # Cache completed sequence
-        resume_cache[cache_key] = accumulated_events
+        await SQLiteCache.set(cache_key, accumulated_events)
 
     return StreamingResponse(
         event_generator(),

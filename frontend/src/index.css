@@ -716,16 +716,18 @@ textarea:focus {
   color: #c2e7ff; /* Very soft light blue */
 }
 
-/* Mock Interview Chat Console */
 .interview-console-card {
   padding: 1.25rem;
   height: 520px;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex-grow: 1;
+  min-height: 0;
 }
 
 .chat-messages {
@@ -1205,4 +1207,41 @@ textarea:focus {
   font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.45;
+}
+
+/* Resume Scorer Side-by-Side Layout */
+.resume-scorer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.resume-scorer-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.resume-upload-card,
+.resume-metrics-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.resume-metrics-card .empty-state,
+.resume-metrics-card .loading-state {
+  margin: auto;
+  padding: 3rem 1.5rem;
+}
+
+.resume-feedback-card {
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 1024px) {
+  .resume-scorer-top-grid {
+    grid-template-columns: 1fr;
+  }
 }

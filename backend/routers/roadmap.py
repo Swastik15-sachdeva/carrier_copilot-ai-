@@ -2,6 +2,7 @@ from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from services.llm_client import stream_gemini_response
+from services.storage import SQLiteCache, generate_cache_key
 from prompts import ROADMAP_GENERATOR_PROMPT
 
 router = APIRouter(prefix="/roadmap", tags=["roadmap"])
@@ -9,8 +10,6 @@ router = APIRouter(prefix="/roadmap", tags=["roadmap"])
 class RoadmapRequest(BaseModel):
     current_skills: str
     target_role: str
-
-roadmap_cache = {}
 
 @router.post("/generate")
 async def generate_roadmap(
@@ -21,11 +20,12 @@ async def generate_roadmap(
     Generates a personalized, phased learning roadmap based on current skills and target role.
     Streams back the generated markdown chunks.
     """
-    cache_key = (req.current_skills.strip().lower(), req.target_role.strip().lower())
-    if cache_key in roadmap_cache:
+    cache_key = generate_cache_key("roadmap", req.current_skills.strip().lower(), req.target_role.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving roadmap from cache!")
         async def cached_event_generator():
-            for chunk in roadmap_cache[cache_key]:
+            for chunk in cached:
                 yield chunk
         return StreamingResponse(
             cached_event_generator(),
@@ -48,7 +48,7 @@ async def generate_roadmap(
         async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
             accumulated_chunks.append(chunk)
             yield chunk
-        roadmap_cache[cache_key] = accumulated_chunks
+        await SQLiteCache.set(cache_key, accumulated_chunks)
 
     return StreamingResponse(
         caching_generator(),

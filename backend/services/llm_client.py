@@ -1,5 +1,6 @@
 import os
 import asyncio
+import random
 from dotenv import load_dotenv
 import google.generativeai as genai
 
@@ -27,7 +28,14 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
             yield chunk
         return
 
-    model_candidates = ['gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-pro-latest', 'gemini-1.5-flash']
+    model_candidates = [
+        'gemini-3.1-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3.5-flash',
+        'gemini-flash-latest',
+        'gemini-2.0-flash',
+        'gemini-pro-latest'
+    ]
     
     try:
         genai.configure(api_key=key)
@@ -40,48 +48,79 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
     success = False
     last_error = None
     should_fast_fail = False
+    max_retries = 3
+    base_delay = 1.0
 
     for model_name in model_candidates:
         if should_fast_fail:
             break
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=system_instruction
-            )
-            response = await model.generate_content_async(prompt, stream=True)
-            response_iter = response.__aiter__()
             
-            # Verify the model starts streaming successfully
+        model_success = False
+        for attempt in range(max_retries):
             try:
-                first_chunk = await response_iter.__anext__()
-                success = True
-                if first_chunk.text:
-                    yield f"data: {first_chunk.text}\n\n"
-            except StopAsyncIteration:
-                success = True
-                break
-
-            if success:
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=system_instruction
+                )
+                response = await model.generate_content_async(prompt, stream=True)
+                response_iter = response.__aiter__()
+                
+                # Verify the model starts streaming successfully
                 try:
-                    while True:
-                        chunk = await response_iter.__anext__()
-                        if chunk.text:
-                            yield f"data: {chunk.text}\n\n"
+                    first_chunk = await response_iter.__anext__()
+                    success = True
+                    model_success = True
+                    if first_chunk.text:
+                        yield f"data: {first_chunk.text}\n\n"
                 except StopAsyncIteration:
-                    pass
-                break
-        except Exception as e:
-            last_error = e
-            print(f"Failed to use model '{model_name}': {e}")
-            
-            status_code = getattr(e, 'code', None)
-            err_msg = str(e).lower()
-            if status_code in [400, 401, 403, 429] or "quota" in err_msg or "billing" in err_msg or "unauthorized" in err_msg or "key" in err_msg:
-                print(f"Fast failing candidate models due to persistent error: {e}")
-                should_fast_fail = True
-                break
-            continue
+                    success = True
+                    model_success = True
+                    break
+
+                if model_success:
+                    try:
+                        while True:
+                            chunk = await response_iter.__anext__()
+                            if chunk.text:
+                                yield f"data: {chunk.text}\n\n"
+                    except StopAsyncIteration:
+                        pass
+                    break
+            except Exception as e:
+                last_error = e
+                status_code = getattr(e, 'code', None)
+                err_msg = str(e).lower()
+                
+                # 1. Global authentication or API key errors: fast-fail the entire candidates loop
+                if status_code == 401 or "api key not valid" in err_msg or "invalid api key" in err_msg or "unauthorized" in err_msg:
+                    print(f"Global auth/key error. Fast failing all candidate models: {e}")
+                    should_fast_fail = True
+                    break
+                
+                # 2. Permanent model-specific errors: skip retries and move to next candidate model immediately
+                # - 404 (Not Found / Model not available)
+                # - 403 (Access denied / Forbidden for this model)
+                # - 429 with limit 0 (No quota for this model)
+                if (status_code in [403, 404] or 
+                    "not found" in err_msg or 
+                    "not supported" in err_msg or
+                    "limit: 0" in err_msg or 
+                    "limit:0" in err_msg or
+                    "no longer available" in err_msg):
+                    print(f"Permanent error for model '{model_name}': {e}. Skipping retries and trying next model...")
+                    break  # Breaks out of the attempt retry loop for this model
+                
+                # 3. Standard rate-limit 429 (not limit 0) or transient server errors (500, 503): retry with backoff
+                if attempt < max_retries - 1:
+                    sleep_time = base_delay * (2 ** attempt) + random.uniform(0, 0.5)
+                    print(f"Transient error with model '{model_name}': {e}. Retrying in {sleep_time:.2f}s (Attempt {attempt+1}/{max_retries})...")
+                    await asyncio.sleep(sleep_time)
+                else:
+                    print(f"Failed to use model '{model_name}' after {max_retries} attempts: {e}")
+        
+        # If successfully streamed for this candidate model, stop candidate loop
+        if model_success:
+            break
 
     if not success:
         yield f"data: [Gemini API Error (All models failed): {str(last_error)}. Falling back to Demo/Mock mode...]\n\n"

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from services.llm_client import stream_gemini_response
+from services.storage import SQLiteCache, generate_cache_key
 from prompts import (
     INTERVIEW_GENERATOR_PROMPT,
     DSA_PLANNER_PROMPT,
@@ -34,13 +35,6 @@ class LearningResourcesRequest(BaseModel):
     topic: str
     target_role: str
 
-# In-memory Caches
-interview_questions_cache = {}
-dsa_planner_cache = {}
-linkedin_optimizer_cache = {}
-project_recommender_cache = {}
-learning_resources_cache = {}
-
 # Endpoints
 @router.post("/interview-questions")
 async def generate_interview_questions(
@@ -50,11 +44,12 @@ async def generate_interview_questions(
     """
     Generates tailored interview questions and preparation answers.
     """
-    cache_key = (req.target_role.strip().lower(), req.experience_level.strip().lower())
-    if cache_key in interview_questions_cache:
+    cache_key = generate_cache_key("interview_questions", req.target_role.strip().lower(), req.experience_level.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving interview questions from cache!")
         async def cached_generator():
-            for chunk in interview_questions_cache[cache_key]:
+            for chunk in cached:
                 yield chunk
         return StreamingResponse(
             cached_generator(),
@@ -77,7 +72,7 @@ async def generate_interview_questions(
         async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
             accumulated_chunks.append(chunk)
             yield chunk
-        interview_questions_cache[cache_key] = accumulated_chunks
+        await SQLiteCache.set(cache_key, accumulated_chunks)
 
     return StreamingResponse(
         caching_generator(),
@@ -97,11 +92,12 @@ async def generate_dsa_plan(
     """
     Generates a personalized DSA upskilling and practice schedule.
     """
-    cache_key = (req.target_role.strip().lower(), req.timeline.strip().lower(), req.current_level.strip().lower())
-    if cache_key in dsa_planner_cache:
+    cache_key = generate_cache_key("dsa_planner:v2", req.target_role.strip().lower(), req.timeline.strip().lower(), req.current_level.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving DSA plan from cache!")
         async def cached_generator():
-            for chunk in dsa_planner_cache[cache_key]:
+            for chunk in cached:
                 yield chunk
         return StreamingResponse(
             cached_generator(),
@@ -125,7 +121,7 @@ async def generate_dsa_plan(
         async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
             accumulated_chunks.append(chunk)
             yield chunk
-        dsa_planner_cache[cache_key] = accumulated_chunks
+        await SQLiteCache.set(cache_key, accumulated_chunks)
 
     return StreamingResponse(
         caching_generator(),
@@ -148,11 +144,12 @@ async def optimize_linkedin(
     # Clean and limit payload to conserve tokens
     clean_resume = " ".join(req.resume_text.split())[:8000]
     
-    cache_key = (req.target_role.strip().lower(), clean_resume)
-    if cache_key in linkedin_optimizer_cache:
+    cache_key = generate_cache_key("linkedin_optimizer", req.target_role.strip().lower(), clean_resume)
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving LinkedIn optimization from cache!")
         async def cached_generator():
-            for chunk in linkedin_optimizer_cache[cache_key]:
+            for chunk in cached:
                 yield chunk
         return StreamingResponse(
             cached_generator(),
@@ -175,7 +172,7 @@ async def optimize_linkedin(
         async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
             accumulated_chunks.append(chunk)
             yield chunk
-        linkedin_optimizer_cache[cache_key] = accumulated_chunks
+        await SQLiteCache.set(cache_key, accumulated_chunks)
 
     return StreamingResponse(
         caching_generator(),
@@ -195,11 +192,12 @@ async def recommend_projects(
     """
     Generates 3 unique portfolio project recommendations based on target goals and skills.
     """
-    cache_key = (req.current_skills.strip().lower(), req.target_role.strip().lower())
-    if cache_key in project_recommender_cache:
+    cache_key = generate_cache_key("project_recommender", req.current_skills.strip().lower(), req.target_role.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving project recommendations from cache!")
         async def cached_generator():
-            for chunk in project_recommender_cache[cache_key]:
+            for chunk in cached:
                 yield chunk
         return StreamingResponse(
             cached_generator(),
@@ -222,7 +220,7 @@ async def recommend_projects(
         async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
             accumulated_chunks.append(chunk)
             yield chunk
-        project_recommender_cache[cache_key] = accumulated_chunks
+        await SQLiteCache.set(cache_key, accumulated_chunks)
 
     return StreamingResponse(
         caching_generator(),
@@ -242,11 +240,12 @@ async def find_learning_resources(
     """
     Curates a list of top free resources for learning a specific technology or topic.
     """
-    cache_key = (req.topic.strip().lower(), req.target_role.strip().lower())
-    if cache_key in learning_resources_cache:
+    cache_key = generate_cache_key("learning_resources", req.topic.strip().lower(), req.target_role.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
         print("Serving learning resources from cache!")
         async def cached_generator():
-            for chunk in learning_resources_cache[cache_key]:
+            for chunk in cached:
                 yield chunk
         return StreamingResponse(
             cached_generator(),
@@ -269,7 +268,7 @@ async def find_learning_resources(
         async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
             accumulated_chunks.append(chunk)
             yield chunk
-        learning_resources_cache[cache_key] = accumulated_chunks
+        await SQLiteCache.set(cache_key, accumulated_chunks)
 
     return StreamingResponse(
         caching_generator(),

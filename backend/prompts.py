@@ -128,7 +128,7 @@ Your response must be in clean Markdown format and follow this structure:
    - Elaborate on each phase, providing conceptual explanations, recommended steps, and key problem scenarios.
 5. **Resource & Practice Platforms**: Suggest high-quality platforms (LeetCode, HackerRank, GeeksforGeeks, NeetCode, etc.) and list specific lists to focus on (e.g., Blind 75, NeetCode 150).
 6. **Mock Prep & Complexity Cheat Sheet**:
-   - Provide a Markdown table of common algorithms and their Time and Space complexity (Best, Average, Worst case).
+   - Provide a Markdown table of common algorithms and their Time and Space complexity (Best, Average, Worst case). Use plain-text notation (e.g., 'O(n log n)', 'O(1)', 'O(V+E)') instead of raw LaTeX or dollar sign math formats (do NOT use '$O(n \log n)$' or similar).
    - Practical advice on dry-running code and managing runtime/memory complexity analysis during live coding.
 
 Ensure all Mermaid blocks are valid and all complexity tables are clearly structured.

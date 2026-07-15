@@ -44,14 +44,18 @@ export async function readStream(response, onChunk, onHeuristics) {
 
 function processMessage(message, onChunk, onHeuristics) {
   const cleanMessage = message.replace(/\r/g, "");
+  const trimmed = cleanMessage.trim();
   
-  if (cleanMessage.startsWith("data: ")) {
-    const dataStr = cleanMessage.slice(6);
+  if (trimmed.startsWith("data: ")) {
+    // Slice off 'data: ' prefix based on its actual position in the message,
+    // preserving any subsequent spacing or linebreaks.
+    const dataIdx = cleanMessage.indexOf("data: ");
+    const dataStr = cleanMessage.slice(dataIdx + 6);
     
     // Check for heuristics JSON
-    if (dataStr.startsWith("{") && dataStr.includes('"type"') && dataStr.includes('"heuristics"')) {
+    if (dataStr.trim().startsWith("{") && dataStr.includes('"type"') && dataStr.includes('"heuristics"')) {
       try {
-        const heuristics = JSON.parse(dataStr);
+        const heuristics = JSON.parse(dataStr.trim());
         if (onHeuristics) {
           onHeuristics(heuristics);
         }

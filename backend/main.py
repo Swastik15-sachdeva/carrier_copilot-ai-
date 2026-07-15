@@ -3,12 +3,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from routers import resume, roadmap, interview, cover_letter, mentor_tools
+from services.storage import init_db
 
 app = FastAPI(
     title="AI Career Copilot API",
     description="Full-stack AI Career Copilot MVP backend endpoints",
     version="1.0"
 )
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 # Enable CORS for frontend flexibility
 app.add_middleware(
