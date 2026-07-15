@@ -42,15 +42,66 @@ export async function readStream(response, onChunk, onHeuristics) {
   }
 }
 
+function cleanMathExpressions(text) {
+  if (!text) return text;
+  let cleaned = text;
+  
+  // Replace display math $$...$$
+  cleaned = cleaned.replace(/\$\$([^\$]+)\$\$/g, (match, p1) => {
+    return cleanMathInner(p1);
+  });
+  
+  // Replace inline math $...$
+  cleaned = cleaned.replace(/\$([^\$]+)\$/g, (match, p1) => {
+    if (/^\d+(\.\d+)?\s*[a-zA-Z]?$/.test(p1.trim())) {
+      return match;
+    }
+    const trimmed = p1.trim();
+    const isMath = /^[OoQqθωΘΩ]\(/.test(trimmed) || 
+                   trimmed.includes('\\') || 
+                   trimmed.includes('^') || 
+                   trimmed.includes('+') || 
+                   trimmed.includes('-') || 
+                   trimmed.includes('*') || 
+                   trimmed.includes('/') ||
+                   trimmed.length === 1 ||
+                   /^(log|n|v|e|w|k|v\+e)$/i.test(trimmed);
+                   
+    if (isMath) {
+      return cleanMathInner(p1);
+    }
+    return match;
+  });
+  
+  return cleaned;
+}
+
+function cleanMathInner(mathText) {
+  return mathText
+    .replace(/\\(log|times|theta|omega|alpha|beta|gamma|delta|le|ge|ne|approx|in|cup|cap|subset|subseteq|empty)/gi, '$1')
+    .replace(/\\/g, '');
+}
+
 function processMessage(message, onChunk, onHeuristics) {
   const cleanMessage = message.replace(/\r/g, "");
   const trimmed = cleanMessage.trim();
   
   if (trimmed.startsWith("data: ")) {
-    // Slice off 'data: ' prefix based on its actual position in the message,
-    // preserving any subsequent spacing or linebreaks.
-    const dataIdx = cleanMessage.indexOf("data: ");
-    const dataStr = cleanMessage.slice(dataIdx + 6);
+    // Split the message by newlines, strip the "data: " prefix from each line,
+    // and join them back. This handles multi-line data payloads cleanly.
+    const lines = cleanMessage.split("\n");
+    const processedLines = lines.map(line => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith("data: ")) {
+        const idx = line.indexOf("data: ");
+        return line.slice(idx + 6);
+      } else if (trimmedLine === "data:") {
+        return "";
+      }
+      return line;
+    });
+    
+    const dataStr = processedLines.join("\n");
     
     // Check for heuristics JSON
     if (dataStr.trim().startsWith("{") && dataStr.includes('"type"') && dataStr.includes('"heuristics"')) {
@@ -61,16 +112,19 @@ function processMessage(message, onChunk, onHeuristics) {
         }
       } catch (e) {
         console.error("Failed to parse heuristics JSON:", e);
+        if (onChunk) {
+          onChunk(cleanMathExpressions(dataStr));
+        }
       }
     } else {
       if (onChunk) {
-        onChunk(dataStr);
+        onChunk(cleanMathExpressions(dataStr));
       }
     }
   } else {
     // Treat as continuation of a text chunk split by \n\n message boundary
     if (onChunk && cleanMessage.trim() !== "") {
-      onChunk("\n\n" + cleanMessage);
+      onChunk(cleanMathExpressions("\n\n" + cleanMessage));
     }
   }
 }
