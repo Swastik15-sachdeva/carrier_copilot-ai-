@@ -10,8 +10,90 @@ export default function MockInterview() {
   const [userInput, setUserInput] = useState('');
   const [streamingMessage, setStreamingMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const chatEndRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  const cleanMarkdownForSpeech = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/[*_~`#\-+]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+  };
+
+  const speak = (text) => {
+    if (!ttsEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const cleaned = cleanMarkdownForSpeech(text);
+    if (!cleaned) return;
+    const utterance = new SpeechSynthesisUtterance(cleaned);
+    const voices = window.speechSynthesis.getVoices();
+    const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+    if (defaultVoice) {
+      utterance.voice = defaultVoice;
+    }
+    window.speechSynthesis.speak(utterance);
+  };
+
+  useEffect(() => {
+    if (!ttsEnabled) {
+      window.speechSynthesis?.cancel();
+    }
+  }, [ttsEnabled]);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsRecording(true);
+      };
+
+      rec.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setUserInput((prev) => (prev ? prev + ' ' + transcript : transcript));
+      };
+
+      rec.onerror = (e) => {
+        console.error("Speech recognition error", e);
+        setIsRecording(false);
+      };
+
+      rec.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+    return () => {
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      alert("Speech Recognition API is not supported in this browser.");
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Failed to start speech recognition", err);
+      }
+    }
+  };
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -60,6 +142,7 @@ export default function MockInterview() {
       setMessages([{ role: 'model', text: content }]);
       setStreamingMessage('');
       setLoading(false);
+      speak(content);
     } catch (error) {
       console.error(error);
       alert('Failed to start mock interview.');
@@ -108,6 +191,7 @@ export default function MockInterview() {
       setMessages((prev) => [...prev, { role: 'model', text: content }]);
       setStreamingMessage('');
       setLoading(false);
+      speak(content);
     } catch (error) {
       console.error(error);
       alert('An error occurred during communication.');
@@ -154,6 +238,7 @@ export default function MockInterview() {
       setMessages((prev) => [...prev, { role: 'model', text: content }]);
       setStreamingMessage('');
       setLoading(false);
+      speak(content);
     } catch (error) {
       console.error(error);
       alert('Failed to end interview gracefully.');
@@ -221,7 +306,30 @@ export default function MockInterview() {
       
       {/* Right Chat Sandbox */}
       <div className="card interview-console-card">
-        <h2 className="card-title">Interview Sandbox</h2>
+        <div className="panel-header-actions">
+          <h2 className="card-title">Interview Sandbox</h2>
+          {isActive && (
+            <button 
+              type="button" 
+              className={`tts-btn ${ttsEnabled ? 'active' : ''}`}
+              onClick={() => setTtsEnabled(!ttsEnabled)}
+              title={ttsEnabled ? "Mute AI Voice" : "Enable AI Voice"}
+            >
+              {ttsEnabled ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
         
         <div className="chat-container">
           <div className="chat-messages">
@@ -262,15 +370,41 @@ export default function MockInterview() {
           
           {isActive && (
             <form onSubmit={handleSendMessage} className="chat-input-form">
-              <input 
-                type="text" 
-                placeholder="Type your answer here..." 
-                required 
-                autoComplete="off"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                disabled={loading}
-              />
+              <div style={{ position: 'relative', display: 'flex', flexGrow: 1, alignItems: 'center' }}>
+                <input 
+                  type="text" 
+                  placeholder="Type your answer here..." 
+                  required 
+                  autoComplete="off"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  disabled={loading}
+                  style={{ paddingRight: '45px' }}
+                />
+                <button 
+                  type="button" 
+                  className={`mic-btn ${isRecording ? 'listening' : ''}`}
+                  onClick={toggleRecording}
+                  disabled={loading}
+                  title={isRecording ? "Stop Recording" : "Dictate Answer"}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    zIndex: 10
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                </button>
+              </div>
               <button type="submit" className="btn btn-primary send-btn" disabled={loading}>
                 Send
               </button>

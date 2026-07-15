@@ -104,7 +104,14 @@ export default function CareerRoadmap() {
       
       {/* Right Output Panel */}
       <div className="card result-panel">
-        <h2 className="card-title">Your Career Roadmap</h2>
+        <div className="panel-header-actions">
+          <h2 className="card-title">Your Career Roadmap</h2>
+          {roadmap && (
+            <button className="btn btn-secondary btn-sm print-btn" onClick={() => window.print()}>
+              🖨️ Export PDF
+            </button>
+          )}
+        </div>
         
         {!loading && !roadmap && (
           <div className="empty-state">

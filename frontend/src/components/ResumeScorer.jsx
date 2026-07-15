@@ -23,12 +23,75 @@ export default function ResumeScorer() {
   const fileInputRef = useRef(null);
   const timerRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const refineAbortControllerRef = useRef(null);
+
+  const [refineBullet, setRefineBullet] = useState('');
+  const [refineFocus, setRefineFocus] = useState('Metrics');
+  const [refinedOutput, setRefinedOutput] = useState('');
+  const [refineLoading, setRefineLoading] = useState(false);
+
+  const handleRefineSubmit = async (e) => {
+    e.preventDefault();
+    if (!refineBullet.trim()) return;
+    if (refineLoading) return;
+
+    if (refineAbortControllerRef.current) {
+      refineAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    refineAbortControllerRef.current = controller;
+
+    setRefineLoading(true);
+    setRefinedOutput('');
+
+    try {
+      const response = await fetch('/resume/refine-bullet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bullet: refineBullet.trim(),
+          focus: refineFocus,
+          target_role: targetRole.trim() || 'Software Engineer'
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error('Refine bullet server error.');
+      }
+
+      await readStream(
+        response,
+        (chunk) => {
+          setRefinedOutput((prev) => prev + chunk);
+        }
+      );
+
+      setRefineLoading(false);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error(error);
+      alert('An error occurred during bullet point refinement.');
+      setRefineLoading(false);
+    }
+  };
+
+  const handleCopyRefined = () => {
+    if (!refinedOutput) return;
+    navigator.clipboard.writeText(refinedOutput.replace(/^•\s*|^\-\s*/, ''));
+    alert('Refined bullet point copied to clipboard!');
+  };
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+      }
+      if (refineAbortControllerRef.current) {
+        refineAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -184,64 +247,141 @@ export default function ResumeScorer() {
     <div className="resume-scorer-container">
       {/* Top Section: Side-by-Side Upload & Metrics */}
       <div className="resume-scorer-top-grid">
-        {/* Left Column: Upload Resume & Target Role */}
-        <div className="card resume-upload-card">
-          <h2 className="card-title">Upload Resume & Target Role</h2>
-          <p className="card-subtitle">Upload your PDF resume and enter the role you want to score it against.</p>
-          
-          <form onSubmit={handleSubmit} className="app-form">
-            <div className="form-group">
-              <label htmlFor="resume-target-role">Target Job Role</label>
-              <input 
-                type="text" 
-                id="resume-target-role" 
-                placeholder="e.g. Frontend Engineer, Product Manager" 
-                required
-                value={targetRole}
-                onChange={(e) => setTargetRole(e.target.value)}
-              />
-            </div>
+        {/* Left Column wrapper to stack Upload and Bullet Refiner */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Left Column: Upload Resume & Target Role */}
+          <div className="card resume-upload-card" style={{ height: 'auto' }}>
+            <h2 className="card-title">Upload Resume & Target Role</h2>
+            <p className="card-subtitle">Upload your PDF resume and enter the role you want to score it against.</p>
             
-            <div className="form-group">
-              <label>Resume PDF File</label>
-              {!file ? (
-                <div 
-                  className={`file-dropzone ${dragActive ? 'dragover' : ''}`}
-                  onClick={() => fileInputRef.current.click()}
-                  onDragEnter={handleDrag}
-                  onDragOver={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <span className="dropzone-icon">📥</span>
-                  <span className="dropzone-text">Drag & drop your PDF resume here or click to browse</span>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef}
-                    accept=".pdf" 
-                    required 
-                    style={{ display: 'none' }}
-                    onChange={handleFileChange}
-                  />
-                </div>
-              ) : (
-                <div className="file-name-tag">
-                  <span className="file-icon">📄</span> 
-                  <span className="file-name-text">{file.name}</span>
-                  <button type="button" className="remove-btn" onClick={handleRemoveFile}>&times;</button>
-                </div>
-              )}
-            </div>
+            <form onSubmit={handleSubmit} className="app-form">
+              <div className="form-group">
+                <label htmlFor="resume-target-role">Target Job Role</label>
+                <input 
+                  type="text" 
+                  id="resume-target-role" 
+                  placeholder="e.g. Frontend Engineer, Product Manager" 
+                  required
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Resume PDF File</label>
+                {!file ? (
+                  <div 
+                    className={`file-dropzone ${dragActive ? 'dragover' : ''}`}
+                    onClick={() => fileInputRef.current.click()}
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    <span className="dropzone-icon">📥</span>
+                    <span className="dropzone-text">Drag & drop your PDF resume here or click to browse</span>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      accept=".pdf" 
+                      required 
+                      style={{ display: 'none' }}
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                ) : (
+                  <div className="file-name-tag">
+                    <span className="file-icon">📄</span> 
+                    <span className="file-name-text">{file.name}</span>
+                    <button type="button" className="remove-btn" onClick={handleRemoveFile}>&times;</button>
+                  </div>
+                )}
+              </div>
+              
+              <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                {loading ? 'Analyzing...' : 'Analyze & Score Resume'}
+              </button>
+            </form>
+          </div>
+
+          {/* Resume Bullet Point Improver widget card */}
+          <div className="card bullet-refiner-card">
+            <h2 className="card-title">Resume Bullet Point Improver</h2>
+            <p className="card-subtitle">Rewrite a boring resume point into a high-impact, quantified item.</p>
             
-            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-              {loading ? 'Analyzing...' : 'Analyze & Score Resume'}
-            </button>
-          </form>
+            <form onSubmit={handleRefineSubmit} className="app-form">
+              <div className="form-group">
+                <label htmlFor="refine-bullet-text">Boring Bullet Point</label>
+                <textarea 
+                  id="refine-bullet-text" 
+                  placeholder="e.g. Responsible for writing unit tests and fixing bugs." 
+                  rows={2} 
+                  required
+                  value={refineBullet}
+                  onChange={(e) => setRefineBullet(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label htmlFor="refine-focus">Improvement Focus</label>
+                  <select 
+                    id="refine-focus" 
+                    value={refineFocus}
+                    onChange={(e) => setRefineFocus(e.target.value)}
+                  >
+                    <option value="Metrics">Add Metrics (Impact)</option>
+                    <option value="Action">Action Verbs (Power)</option>
+                    <option value="Concise">Make Concise (Density)</option>
+                    <option value="Tailor">Tailor to Role (Keywords)</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button type="submit" className="btn btn-primary btn-full" disabled={refineLoading}>
+                    {refineLoading ? 'Refining...' : 'Refine Point'}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {(refineLoading || refinedOutput) && (
+              <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Improved Output:</h4>
+                  {refinedOutput && (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={handleCopyRefined}
+                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                    >
+                      Copy
+                    </button>
+                  )}
+                </div>
+                <div className="refined-output-box">
+                  {refinedOutput || (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+                      <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }}></div>
+                      Refining bullet point...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column: ATS Metrics */}
         <div className="card resume-metrics-card">
-          <h2 className="card-title">ATS Metrics</h2>
+          <div className="panel-header-actions">
+            <h2 className="card-title">ATS Metrics</h2>
+            {heuristics && (
+              <button className="btn btn-secondary btn-sm print-btn" onClick={() => window.print()}>
+                🖨️ Export PDF
+              </button>
+            )}
+          </div>
           <p className="card-subtitle">ATS suitability score and heuristics details.</p>
           
           {!loading && !heuristics && (

@@ -126,4 +126,71 @@ Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
             "X-Accel-Buffering": "no"
         }
     )
+from pydantic import BaseModel
 
+class BulletRefineRequest(BaseModel):
+    bullet: str
+    focus: str
+    target_role: str
+
+@router.post("/refine-bullet")
+async def refine_bullet(
+    req: BulletRefineRequest,
+    x_gemini_api_key: str = Header(None)
+):
+    """
+    Improves a single resume bullet point based on a target role and specified focus.
+    Streams back the improved result.
+    """
+    cache_key = generate_cache_key("bullet_refine", req.bullet.strip(), req.focus, req.target_role.strip().lower())
+    cached = await SQLiteCache.get(cache_key)
+    if cached:
+        print("Serving bullet refinement from cache!")
+        async def cached_generator():
+            for chunk in cached:
+                yield chunk
+        return StreamingResponse(
+            cached_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+
+    system_instruction = (
+        "You are an expert resume writer and recruiter.\n"
+        "Your task is to rewrite a single resume bullet point to make it extremely strong, professional, and tailored.\n"
+        "Do NOT write any introduction or explanation. Only return the refined bullet point itself (starting with a bullet point character like '•' or '-').\n"
+        "Ensure the output is clean plain text or simple markdown formatting."
+    )
+
+    prompt = (
+        f"Target Role: {req.target_role}\n"
+        f"Focus Area: {req.focus}\n"
+        f"Original Bullet Point: \"{req.bullet}\"\n\n"
+        "Improve this bullet point. Follow these guidelines according to the Focus Area:\n"
+        "- If Focus Area is 'Metrics', integrate realistic metrics, percentages, dollar amounts, or time saved (even if you have to mock a realistic figure based on the context).\n"
+        "- If Focus Area is 'Action', start with strong, impactful action verbs (e.g. Spearheaded, Devised, Orchestrated) instead of weak phrases.\n"
+        "- If Focus Area is 'Concise', make the sentence highly impact-dense, removing filler words while keeping the core message strong.\n"
+        "- If Focus Area is 'Tailor', match the keywords and technologies commonly expected for the target role.\n\n"
+        "Provide exactly ONE refined bullet point."
+    )
+
+    accumulated_chunks = []
+    async def caching_generator():
+        async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
+            accumulated_chunks.append(chunk)
+            yield chunk
+        await SQLiteCache.set(cache_key, accumulated_chunks)
+
+    return StreamingResponse(
+        caching_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )

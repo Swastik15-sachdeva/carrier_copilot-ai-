@@ -111,11 +111,18 @@ export default function CoverLetter() {
       <div className="card result-panel">
         <div className="panel-header-actions">
           <h2 className="card-title">Tailored Cover Letter</h2>
-          {letterContent && (
-            <button className="btn btn-secondary btn-sm" onClick={handleCopy}>
-              Copy to Clipboard
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {letterContent && (
+              <>
+                <button className="btn btn-secondary btn-sm" onClick={handleCopy}>
+                  Copy to Clipboard
+                </button>
+                <button className="btn btn-secondary btn-sm print-btn" onClick={() => window.print()}>
+                  🖨️ Export PDF
+                </button>
+              </>
+            )}
+          </div>
         </div>
         
         {!loading && !letterContent && (
