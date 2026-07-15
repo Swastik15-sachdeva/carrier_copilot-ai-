@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GzipMiddleware
 from fastapi.staticfiles import StaticFiles
-from routers import resume, roadmap, interview, cover_letter, mentor_tools
+from routers import resume, roadmap, interview, cover_letter, mentor_tools, telemetry
 from services.storage import init_db
 
 app = FastAPI(
@@ -34,6 +34,7 @@ app.include_router(roadmap.router)
 app.include_router(interview.router)
 app.include_router(cover_letter.router)
 app.include_router(mentor_tools.router)
+app.include_router(telemetry.router)
 
 @app.get("/health")
 def health_check():

@@ -33,6 +33,21 @@ def init_db():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_updated ON session_store(updated_at)")
     
+    # Telemetry storage table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS llm_telemetry (
+            id TEXT PRIMARY KEY,
+            feature TEXT,
+            model TEXT,
+            prompt TEXT,
+            response TEXT,
+            latency_ms INTEGER,
+            user_feedback INTEGER DEFAULT 0,
+            created_at DATETIME NOT NULL
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_created ON llm_telemetry(created_at)")
+
     conn.commit()
     conn.close()
 
@@ -150,3 +165,28 @@ class SQLiteSessionStore:
         """Cleans up inactive sessions older than 3 days to prevent database bloat."""
         cutoff = (datetime.utcnow() - timedelta(days=days_old)).isoformat()
         await _execute_query("DELETE FROM session_store WHERE updated_at < ?", (cutoff,), commit=True)
+
+class SQLiteTelemetryStore:
+    @staticmethod
+    async def log_telemetry(telemetry_id: str, feature: str, model: str, prompt: str, response: str, latency_ms: int):
+        """Logs LLM interaction to the telemetry table."""
+        now = datetime.utcnow().isoformat()
+        prompt_str = json.dumps(prompt) if not isinstance(prompt, str) else prompt
+        
+        await _execute_query(
+            """INSERT INTO llm_telemetry 
+               (id, feature, model, prompt, response, latency_ms, user_feedback, created_at) 
+               VALUES (?, ?, ?, ?, ?, ?, 0, ?)""",
+            (telemetry_id, feature, model, prompt_str, response, latency_ms, now),
+            commit=True
+        )
+
+    @staticmethod
+    async def update_feedback(telemetry_id: str, feedback: int):
+        """Updates user feedback (e.g. +1 or -1) for a specific telemetry ID."""
+        await _execute_query(
+            "UPDATE llm_telemetry SET user_feedback = ? WHERE id = ?",
+            (feedback, telemetry_id),
+            commit=True
+        )
+

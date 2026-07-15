@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { readStream } from '../utils/stream';
 import Mermaid from './Mermaid';
+import FeedbackWidget from './FeedbackWidget';
 
 export default function ResumeScorer() {
   const [targetRole, setTargetRole] = useState('');
@@ -10,6 +11,7 @@ export default function ResumeScorer() {
   const [heuristics, setHeuristics] = useState(null);
   const [aiReview, setAiReview] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [telemetryId, setTelemetryId] = useState(null);
 
   const [streamMetrics, setStreamMetrics] = useState({
     status: 'idle', // 'idle' | 'connecting' | 'heuristics_received' | 'streaming' | 'completed'
@@ -153,6 +155,7 @@ export default function ResumeScorer() {
     setLoading(true);
     setHeuristics(null);
     setAiReview('');
+    setTelemetryId(null);
 
     if (timerRef.current) clearInterval(timerRef.current);
     setStreamMetrics({
@@ -221,6 +224,11 @@ export default function ResumeScorer() {
             ...prev,
             status: 'heuristics_received'
           }));
+        },
+        (telemetryData) => {
+          if (telemetryData && telemetryData.telemetry_id) {
+            setTelemetryId(telemetryData.telemetry_id);
+          }
         }
       );
 
@@ -721,6 +729,9 @@ export default function ResumeScorer() {
                   {aiReview}
                 </ReactMarkdown>
               </div>
+              {streamMetrics.status === 'completed' && telemetryId && (
+                <FeedbackWidget telemetryId={telemetryId} />
+              )}
             </div>
           )}
         </div>

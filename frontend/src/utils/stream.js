@@ -2,7 +2,7 @@
  * Utility to read and decode a server-sent events (SSE) stream from the backend.
  * Calls onChunk for each text snippet, and onHeuristics for parsed JSON checklist details.
  */
-export async function readStream(response, onChunk, onHeuristics) {
+export async function readStream(response, onChunk, onHeuristics, onTelemetry) {
   if (!response.body) {
     throw new Error("No response body to stream.");
   }
@@ -24,7 +24,7 @@ export async function readStream(response, onChunk, onHeuristics) {
         const message = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
         
-        processMessage(message, onChunk, onHeuristics);
+        processMessage(message, onChunk, onHeuristics, onTelemetry);
         
         boundary = buffer.indexOf("\n\n");
       }
@@ -32,7 +32,7 @@ export async function readStream(response, onChunk, onHeuristics) {
       if (done) {
         const remaining = buffer.trim();
         if (remaining) {
-          processMessage(remaining, onChunk, onHeuristics);
+          processMessage(remaining, onChunk, onHeuristics, onTelemetry);
         }
         break;
       }
@@ -82,7 +82,7 @@ function cleanMathInner(mathText) {
     .replace(/\\/g, '');
 }
 
-function processMessage(message, onChunk, onHeuristics) {
+function processMessage(message, onChunk, onHeuristics, onTelemetry) {
   const cleanMessage = message.replace(/\r/g, "");
   const trimmed = cleanMessage.trim();
   
@@ -115,6 +115,15 @@ function processMessage(message, onChunk, onHeuristics) {
         if (onChunk) {
           onChunk(cleanMathExpressions(dataStr));
         }
+      }
+    } else if (dataStr.trim().startsWith("{") && dataStr.includes('"type"') && dataStr.includes('"telemetry"')) {
+      try {
+        const telemetry = JSON.parse(dataStr.trim());
+        if (onTelemetry) {
+          onTelemetry(telemetry);
+        }
+      } catch (e) {
+        console.error("Failed to parse telemetry JSON:", e);
       }
     } else {
       if (onChunk) {

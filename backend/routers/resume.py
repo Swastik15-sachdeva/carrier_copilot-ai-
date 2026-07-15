@@ -110,7 +110,7 @@ Python, JavaScript, HTML5, CSS3, FastAPI, React, SQL, Git, Docker, REST APIs"""
         system_instruction = RESUME_ANALYZER_PROMPT.format(target_role=target_role)
 
         # Stream LLM response
-        async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
+        async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key, feature_name="resume-analysis"):
             accumulated_events.append(chunk)
             yield chunk
 
@@ -180,7 +180,7 @@ async def refine_bullet(
 
     accumulated_chunks = []
     async def caching_generator():
-        async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key):
+        async for chunk in stream_gemini_response(prompt, system_instruction, custom_api_key=x_gemini_api_key, feature_name="bullet-refine"):
             accumulated_chunks.append(chunk)
             yield chunk
         await SQLiteCache.set(cache_key, accumulated_chunks)

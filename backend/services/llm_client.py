@@ -3,6 +3,10 @@ import asyncio
 import random
 from dotenv import load_dotenv
 import google.generativeai as genai
+import time
+import uuid
+import json
+from services.storage import SQLiteTelemetryStore
 
 # Load environment variables from .env
 load_dotenv()
@@ -16,17 +20,28 @@ def is_api_configured() -> bool:
     """Checks whether the Gemini API key is configured."""
     return bool(os.getenv("GEMINI_API_KEY"))
 
-async def stream_gemini_response(prompt: str, system_instruction: str = None, custom_api_key: str = None):
+async def stream_gemini_response(prompt: str, system_instruction: str = None, custom_api_key: str = None, feature_name: str = "general"):
     """
     Asynchronously calls Gemini 1.5 Flash and streams the response tokens as SSE data format.
     If GEMINI_API_KEY is not set, falls back to mock streaming responses.
     """
+    telemetry_id = str(uuid.uuid4())
+    start_time = time.time()
+    accumulated_response = ""
+
     key = custom_api_key or os.getenv("GEMINI_API_KEY")
     if not key:
         # Fallback to Demo/Mock streaming
         async for chunk in get_mock_stream_response(prompt, system_instruction):
             yield chunk
+            if chunk.startswith("data: ") and chunk.endswith("\n\n"):
+                accumulated_response += chunk[6:-2]
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        asyncio.create_task(SQLiteTelemetryStore.log_telemetry(telemetry_id, feature_name, "mock-model", prompt, accumulated_response, latency_ms))
+        yield f"data: {json.dumps({'type': 'telemetry', 'telemetry_id': telemetry_id})}\n\n"
         return
+
 
     model_candidates = [
         'gemini-3.1-flash-lite',
@@ -43,6 +58,12 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
         yield f"data: [API Configuration Error: {str(e)}. Falling back to Demo/Mock mode...]\n\n"
         async for chunk in get_mock_stream_response(prompt, system_instruction):
             yield chunk
+            if chunk.startswith("data: ") and chunk.endswith("\n\n"):
+                accumulated_response += chunk[6:-2]
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        asyncio.create_task(SQLiteTelemetryStore.log_telemetry(telemetry_id, feature_name, "mock-model", prompt, accumulated_response, latency_ms))
+        yield f"data: {json.dumps({'type': 'telemetry', 'telemetry_id': telemetry_id})}\n\n"
         return
 
     success = False
@@ -71,6 +92,7 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
                     success = True
                     model_success = True
                     if first_chunk.text:
+                        accumulated_response += first_chunk.text
                         yield f"data: {first_chunk.text}\n\n"
                 except StopAsyncIteration:
                     success = True
@@ -82,9 +104,14 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
                         while True:
                             chunk = await response_iter.__anext__()
                             if chunk.text:
+                                accumulated_response += chunk.text
                                 yield f"data: {chunk.text}\n\n"
                     except StopAsyncIteration:
                         pass
+                    
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    asyncio.create_task(SQLiteTelemetryStore.log_telemetry(telemetry_id, feature_name, model_name, prompt, accumulated_response, latency_ms))
+                    yield f"data: {json.dumps({'type': 'telemetry', 'telemetry_id': telemetry_id})}\n\n"
                     break
             except Exception as e:
                 last_error = e
@@ -126,6 +153,12 @@ async def stream_gemini_response(prompt: str, system_instruction: str = None, cu
         yield f"data: [Gemini API Error (All models failed): {str(last_error)}. Falling back to Demo/Mock mode...]\n\n"
         async for chunk in get_mock_stream_response(prompt, system_instruction):
             yield chunk
+            if chunk.startswith("data: ") and chunk.endswith("\n\n"):
+                accumulated_response += chunk[6:-2]
+                
+        latency_ms = int((time.time() - start_time) * 1000)
+        asyncio.create_task(SQLiteTelemetryStore.log_telemetry(telemetry_id, feature_name, "mock-model-fallback", prompt, accumulated_response, latency_ms))
+        yield f"data: {json.dumps({'type': 'telemetry', 'telemetry_id': telemetry_id})}\n\n"
 
 
 async def get_mock_stream_response(prompt, system_instruction: str = None):
