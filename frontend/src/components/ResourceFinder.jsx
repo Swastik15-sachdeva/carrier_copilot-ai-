@@ -1,0 +1,144 @@
+import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { readStream } from '../utils/stream';
+import Mermaid from './Mermaid';
+
+export default function ResourceFinder() {
+  const [topic, setTopic] = useState('');
+  const [targetRole, setTargetRole] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [resources, setResources] = useState('');
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoading(true);
+    setResources('');
+
+    const headers = { 'Content-Type': 'application/json' };
+
+    try {
+      const response = await fetch('/mentor/learning-resources', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          topic: topic.trim(),
+          target_role: targetRole.trim()
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error('Resources search server error.');
+      }
+
+      await readStream(
+        response,
+        (chunk) => {
+          setResources((prev) => prev + chunk);
+        }
+      );
+
+      setLoading(false);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error(error);
+      alert('An error occurred during resource curation.');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="grid-layout">
+      {/* Left Input Card */}
+      <div className="card">
+        <h2 className="card-title">Learning Resource Recommendations</h2>
+        <p className="card-subtitle">Locate free courses, playlists, documentation links, and learning checklists for any topic.</p>
+        
+        <form onSubmit={handleSubmit} className="app-form">
+          <div className="form-group">
+            <label htmlFor="rf-topic">Topic to Learn</label>
+            <input 
+              type="text" 
+              id="rf-topic" 
+              placeholder="e.g. Docker, Git, PyTorch, React Router" 
+              required
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="rf-role">Target Job Role</label>
+            <input 
+              type="text" 
+              id="rf-role" 
+              placeholder="e.g. Cloud Architect, Frontend Engineer" 
+              required
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+            />
+          </div>
+          
+          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+            {loading ? 'Finding Resources...' : 'Find Resources'}
+          </button>
+        </form>
+      </div>
+      
+      {/* Right Output Panel */}
+      <div className="card result-panel">
+        <h2 className="card-title">Curated Learning Resources</h2>
+        
+        {!loading && !resources && (
+          <div className="empty-state">
+            <span className="empty-icon">📚</span>
+            <h3>No resources curated</h3>
+            <p>Enter the topic and your career goal to load interactive guides, videos, docs, and concept checklists.</p>
+          </div>
+        )}
+
+        {loading && !resources && (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Searching courses, directories, and documentation...</p>
+          </div>
+        )}
+
+        {resources && (
+          <div className="stream-output markdown-body">
+            <ReactMarkdown
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  const match = /language-mermaid/.test(className || '');
+                  if (!inline && match) {
+                    return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                  }
+                  return <code className={className} {...props}>{children}</code>;
+                }
+              }}
+            >
+              {resources}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

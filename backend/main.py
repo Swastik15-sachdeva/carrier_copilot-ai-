@@ -1,8 +1,10 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.staticfiles import StaticFiles
-from routers import resume, roadmap, interview, cover_letter
+from routers import resume, roadmap, interview, cover_letter, mentor_tools, telemetry
+from services.storage import init_db
 
 app = FastAPI(
     title="AI Career Copilot API",
@@ -10,30 +12,52 @@ app = FastAPI(
     version="1.0"
 )
 
-# Enable CORS for frontend flexibility
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
+# Secure CORS: read from environment, fallback to localhost for development
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 # Register routers
 app.include_router(resume.router)
 app.include_router(roadmap.router)
 app.include_router(interview.router)
 app.include_router(cover_letter.router)
+app.include_router(mentor_tools.router)
+app.include_router(telemetry.router)
 
 @app.get("/health")
 def health_check():
     """Simple health check endpoint for deployment monitoring."""
     return {"status": "ok"}
 
+# Custom static files subclass to add browser cache control headers for frontend assets
+class CacheControlStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        # Cache static assets (JS, CSS, SVGs, etc.) heavily for performance, except HTML
+        if not path.endswith(".html") and (path.startswith("assets/") or path.startswith("static/")):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
 # Mount the static frontend assets at the root index
-frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
 
 if os.path.exists(frontend_dir):
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+    app.mount("/", CacheControlStaticFiles(directory=frontend_dir, html=True), name="frontend")
 else:
     print(f"Warning: Frontend directory '{frontend_dir}' not found. Serving API routes only.")

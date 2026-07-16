@@ -2,13 +2,10 @@ from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from services.llm_client import stream_gemini_response
+from services.storage import SQLiteSessionStore
 from prompts import INTERVIEW_SYSTEM_PROMPT
 
 router = APIRouter(prefix="/interview", tags=["interview"])
-
-# In-memory dictionary to store session state:
-# { session_id: { "target_role": "...", "history": [{"role": "user"/"model", "parts": [{"text": "..."}]}] } }
-sessions = {}
 
 class InterviewRequest(BaseModel):
     session_id: str
@@ -26,14 +23,15 @@ async def interview_chat(
     """
     session_id = req.session_id
     
-    # Initialize session if not exists
-    if session_id not in sessions:
-        sessions[session_id] = {
+    # Retrieve session from SQLite store
+    session = await SQLiteSessionStore.get_session(session_id)
+    if not session:
+        session = {
             "target_role": req.target_role,
             "history": []
         }
+        await SQLiteSessionStore.save_session(session_id, req.target_role, [])
     
-    session = sessions[session_id]
     target_role = session["target_role"]
     history = session["history"]
     
@@ -49,8 +47,10 @@ async def interview_chat(
             "role": "user",
             "parts": [{"text": req.message}]
         })
-        # Pass full history to Gemini
-        prompt_content = history
+        # Persist updated history right away
+        await SQLiteSessionStore.save_session(session_id, target_role, history)
+        # Pass sliding window history to Gemini (limit to last 6 messages)
+        prompt_content = history[-6:]
 
     # We need to capture the streamed output to append it to history for future turns.
     # We will wrap the streaming response.
@@ -71,6 +71,15 @@ async def interview_chat(
                 "role": "model",
                 "parts": [{"text": full_response}]
             })
+            await SQLiteSessionStore.save_session(session_id, target_role, history)
 
-    return StreamingResponse(response_accumulator_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        response_accumulator_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
