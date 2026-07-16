@@ -10,6 +10,7 @@ import LinkedinOptimizer from './components/LinkedinOptimizer';
 import ProjectRecommender from './components/ProjectRecommender';
 import ResourceFinder from './components/ResourceFinder';
 
+import FireballBackground from './components/FireballBackground';
 import './App.css';
 export default function App() {
   const [activeTab, setActiveTab] = useState('resume-score');
@@ -74,6 +75,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <FireballBackground />
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="brand">

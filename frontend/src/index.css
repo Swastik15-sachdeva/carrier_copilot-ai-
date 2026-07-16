@@ -6,20 +6,20 @@
   /* Color System */
   --bg-app: #080b11;
   --bg-sidebar: #0f131a;
-  --bg-card: rgba(22, 28, 45, 0.6);
-  --bg-card-hover: rgba(27, 35, 56, 0.8);
+  --bg-card: rgba(22, 28, 45, 0.4);
+  --bg-card-hover: rgba(27, 35, 56, 0.6);
   
   --border-color: rgba(255, 255, 255, 0.08);
-  --border-color-glow: rgba(0, 242, 254, 0.3);
+  --border-color-glow: rgba(251, 133, 0, 0.3);
   
   --text-primary: #f3f4f6;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
   
   /* Gradient Accents */
-  --gradient-primary: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-  --gradient-accent: linear-gradient(135deg, #7f00ff 0%, #e100ff 100%);
-  --gradient-glow: 0 0 20px rgba(0, 242, 254, 0.25);
+  --gradient-primary: linear-gradient(135deg, #ffb703 0%, #fb8500 100%);
+  --gradient-accent: linear-gradient(135deg, #d00000 0%, #fb8500 100%);
+  --gradient-glow: 0 0 20px rgba(251, 133, 0, 0.25);
   
   --color-success: #10b981;
   --color-warning: #f59e0b;
@@ -45,6 +45,13 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   height: 100vh;
+}
+
+.neural-background-container {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Scrollbar styling */
@@ -108,7 +115,7 @@ body {
 }
 
 .brand-name span {
-  color: #00f2fe;
+  color: #fb8500;
 }
 
 .sidebar-section-title {
@@ -156,9 +163,9 @@ body {
 }
 
 .nav-item.active {
-  background: rgba(0, 242, 254, 0.08);
-  border-color: rgba(0, 242, 254, 0.2);
-  color: #00f2fe;
+  background: rgba(251, 133, 0, 0.08);
+  border-color: rgba(251, 133, 0, 0.2);
+  color: #ffb703;
   font-weight: 600;
   box-shadow: var(--gradient-glow);
 }
@@ -234,9 +241,12 @@ body {
 
 /* Layout Panels & Panes */
 .content-container {
-  padding: 1.5rem 2rem;
+  padding: 2rem 3rem;
   flex-grow: 1;
   overflow-y: auto;
+  max-width: 1300px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .tab-pane {
@@ -1502,6 +1512,7 @@ body.light-theme .theme-toggle-btn:hover {
     overflow: visible !important;
   }
   
+  .neural-background-container,
   .sidebar,
   .top-bar,
   .card:not(.result-panel):not(.resume-feedback-card),
@@ -1548,8 +1559,28 @@ body.light-theme .theme-toggle-btn:hover {
     padding-bottom: 0.5rem !important;
   }
   
-  .markdown-body {
+  .markdown-body,
+  .markdown-body p,
+  .markdown-body li,
+  .markdown-body span {
     color: #000000 !important;
+    font-weight: 500 !important;
+  }
+  
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4 {
+    color: #b91c1c !important; /* Bold deep red */
+    font-weight: 800 !important;
+    background: transparent !important;
+    border-color: #b91c1c !important;
+  }
+  
+  .text-secondary,
+  .text-muted {
+    color: #333333 !important;
+    font-weight: 600 !important;
   }
   
   .markdown-body code {

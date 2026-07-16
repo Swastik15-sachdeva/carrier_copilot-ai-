@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GzipMiddleware
+
 from fastapi.staticfiles import StaticFiles
 from routers import resume, roadmap, interview, cover_letter, mentor_tools, telemetry
 from services.storage import init_db
@@ -25,8 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enable Gzip compression to speed up delivery over cellular/mobile networks
-app.add_middleware(GzipMiddleware, minimum_size=1000)
+
 
 # Register routers
 app.include_router(resume.router)

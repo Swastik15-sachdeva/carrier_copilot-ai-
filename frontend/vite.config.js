@@ -6,11 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/resume': 'http://localhost:8000',
-      '/cover-letter': 'http://localhost:8000',
-      '/roadmap': 'http://localhost:8000',
-      '/interview': 'http://localhost:8000',
-      '/mentor': 'http://localhost:8000',
+      '/resume': 'http://127.0.0.1:8000',
+      '/cover-letter': 'http://127.0.0.1:8000',
+      '/roadmap': 'http://127.0.0.1:8000',
+      '/interview': 'http://127.0.0.1:8000',
+      '/mentor': 'http://127.0.0.1:8000',
     }
   }
 })
