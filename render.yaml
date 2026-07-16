@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ai-career-copilot
+    env: docker
+    plan: starter # Starter plan is required for persistent disks
+    region: ohio # Default region, can be changed
+    # We build using the multi-stage Dockerfile which handles both frontend & backend
+    dockerfilePath: ./Dockerfile
+    disk:
+      name: sqlite-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false # Requires manual entry in the Render dashboard for security
+      - key: ALLOWED_ORIGINS
+        # Change this to your actual Render URL or custom domain after initial deployment
+        value: "https://ai-career-copilot.onrender.com"
+      - key: DATABASE_FILE
+        # Points the SQLite database to the persistent disk we mounted above
+        value: "/data/carrier_copilot.db"
