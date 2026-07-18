@@ -23,7 +23,7 @@ load_dotenv()
 
 # Read configuration values
 
-GROQ_API_KEY = os.getenv("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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_NAME = os.getenv(
     "MODEL_NAME",
     "llama-3.3-70b-versatile"
